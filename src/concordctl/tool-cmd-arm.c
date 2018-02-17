@@ -30,7 +30,7 @@
 #include <unistd.h>
 
 #include "concordctl-utils.h"
-#include "tool-cmd-set-arm-level.h"
+#include "tool-cmd-arm.h"
 #include "assert-macros.h"
 #include "args.h"
 #include "concordd-dbus.h"
@@ -125,7 +125,7 @@ bail:
 }
 
 int
-tool_cmd_set_arm_level(int argc, char *argv[])
+tool_cmd_arm(int argc, char *argv[])
 {
 	static const int set = 1;
 	int ret = 0;

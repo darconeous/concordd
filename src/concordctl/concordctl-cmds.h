@@ -22,8 +22,11 @@
 #define concordd_concordctl_cmds_h
 
 //#include "tool-cmd-list-partitions.h"
-#include "tool-cmd-set-arm-level.h"
-#include "tool-cmd-press-keys.h"
+#include "tool-cmd-arm.h"
+#include "tool-cmd-zone.h"
+#include "tool-cmd-light.h"
+#include "tool-cmd-output.h"
+#include "tool-cmd-keypad.h"
 #include "tool-cmd-partition-info.h"
 
 #include "concordctl-utils.h"
@@ -34,17 +37,39 @@
         "Get info about partition", \
         &tool_cmd_partition_info \
     }, \
+    { "status", "", &tool_cmd_partition_info, 1 }, \
 	{ \
-		"set-arm-level", \
-		"Change partition arm level", \
-		&tool_cmd_set_arm_level \
+		"arm", \
+		"Read or change the partition arm level", \
+		&tool_cmd_arm \
 	}, \
+    { "set-arm-level", "", &tool_cmd_arm, 1 }, \
     { \
-        "press-keys", \
+        "keypad-input", \
         "Simulate button presses on the keypad", \
-        &tool_cmd_press_keys \
+        &tool_cmd_keypad_input \
     }, \
-
+    { "press-keys", "", &tool_cmd_keypad_input, 1 }, \
+    { \
+        "keypad-text", \
+        "Print out the current text on the keypad", \
+        &tool_cmd_keypad_text \
+    }, \
+    { \
+        "zone", \
+        "Prints out info for one or more zones", \
+        &tool_cmd_zone \
+    }, \
+    { \
+        "light", \
+        "Prints out info for one or more lights", \
+        &tool_cmd_light \
+    }, \
+    { \
+        "output", \
+        "Prints out info for one or more outputs", \
+        &tool_cmd_output \
+    }, \
 //    { \
 //        "list-partitions", \
 //        "List partitions", \

@@ -598,6 +598,128 @@ bail:
     return ret;
 }
 
+static DBusHandlerResult
+concordd_dbus_handle_zone_get_info(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    const char* path = dbus_message_get_path(message);
+    const int zone_index = concordd_zone_index_from_dbus_path(path, self->instance);
+    concordd_zone_t zone = concordd_get_zone(self->instance, zone_index);
+    DBusMessage *reply = dbus_message_new_method_return(message);
+    ge_rs232_status_t status;
+
+    if (zone_index < 0 || zone == NULL || !zone->active) {
+        goto bail;
+    }
+
+    syslog(LOG_DEBUG, "Sending DBus response for \"%s\" to \"%s\"", dbus_message_get_member(message), dbus_message_get_sender(message));
+
+    if (!reply) {
+        goto bail;
+    }
+
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    dbus_message_iter_init_append(reply, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+    cstr = CONCORDD_DBUS_CLASS_NAME_ZONE;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_CLASS_NAME,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+	i = zone_index;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_ZONE_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+    cstr = ge_text_to_ascii_one_line(
+        zone->encoded_name,
+        zone->encoded_name_len
+    );
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_NAME,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+    i = zone->partition_id;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_PARTITION_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	i = zone->type;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_TYPE,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+    i = zone->group;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_GROUP,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+    b = !!(zone->zone_state & GE_RS232_ZONE_STATUS_TRIPPED);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_IS_TRIPPED,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+    b = !!(zone->zone_state & GE_RS232_ZONE_STATUS_BYPASSED);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_IS_BYPASSED,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+    b = !!(zone->zone_state & GE_RS232_ZONE_STATUS_TROUBLE);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_IS_TROUBLE,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+    b = !!(zone->zone_state & GE_RS232_ZONE_STATUS_ALARM);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_IS_ALARM,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+    b = !!(zone->zone_state & GE_RS232_ZONE_STATUS_FAULT);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_IS_FAULT,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, reply, NULL);
+
+    ret = DBUS_HANDLER_RESULT_HANDLED;
+bail:
+    dbus_message_unref(reply);
+    return ret;
+}
+
 static bool
 append_dict_event(DBusMessageIter *dict, concordd_event_t event)
 {
@@ -841,7 +963,7 @@ dbus_message_handler(
         } else if (concordd_dbus_path_is_output(path)) {
             //return concordd_dbus_handle_output_get_info(self, connection, message);
         } else if (concordd_dbus_path_is_zone(path)) {
-            //return concordd_dbus_handle_zone_get_info(self, connection, message);
+            return concordd_dbus_handle_zone_get_info(self, connection, message);
         //} else if (concordd_dbus_path_is_light(path)) {
             //return concordd_dbus_handle_light_get_info(self, connection, message);
         }

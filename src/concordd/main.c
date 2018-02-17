@@ -478,7 +478,7 @@ concordd_event_func(void* context, concordd_instance_t instance, concordd_event_
                 if (zone) {
                     const char* zone_name = ge_text_to_ascii_one_line(zone->encoded_name, zone->encoded_name_len);
                     setenv("CONCORDD_ZONE_NAME", zone_name, 1);
-                    snprintf(value, sizeof(value), "%s %s \"%s\" (%d.%d) ZONE %d: %s",
+                    snprintf(value, sizeof(value), "%s %s [%s] (%d.%d) ZONE %d: %s",
                         getenv("CONCORDD_EVENT_STATUS"),
                         getenv("CONCORDD_TYPE"),
                         specific_desc,
@@ -494,7 +494,7 @@ concordd_event_func(void* context, concordd_instance_t instance, concordd_event_
                 setenv("CONCORDD_UNIT_ID", value, 1);
                 setenv("CONCORDD_EVENT_SOURCE_ID", value, 1);
 
-                    snprintf(value, sizeof(value), "%s %s \"%s\" (%d.%d) UNIT %d",
+                    snprintf(value, sizeof(value), "%s %s [%s] (%d.%d) UNIT %d",
                         getenv("CONCORDD_EVENT_STATUS"),
                         getenv("CONCORDD_TYPE"),
                         specific_desc,
