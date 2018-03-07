@@ -108,6 +108,15 @@ concordd_get_light_index(concordd_instance_t self, concordd_partition_t partitio
     return (int)(light-partition->light);
 }
 
+concordd_light_t
+concordd_partition_get_light(concordd_partition_t self, int i)
+{
+	if ((i >= 0) && (i <= 9)) {
+		return &self->light[i];
+	}
+	return NULL;
+}
+
 
 static ge_rs232_status_t
 concordd_send_bytes_(concordd_instance_t self, const uint8_t* bytes, int len,struct ge_rs232_s* instance)

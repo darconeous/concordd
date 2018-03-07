@@ -45,13 +45,9 @@ static const arg_list_item_t zone_option_list[] = {
     {0}
 };
 
-#define STYLE_TABLE 0
-#define STYLE_JSON 1
-#define STYLE_RAW 2
-
 static bool did_write_table_header = false;
 
-int
+static int
 dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 {
 	int ret = -1;
@@ -170,7 +166,7 @@ bail:
 	return ret;
 }
 
-int
+static int
 dump_zone_info_json(FILE* file, DBusMessageIter *iter)
 {
 	dump_info_from_iter(file, iter, 0, 0, false);
@@ -178,7 +174,7 @@ dump_zone_info_json(FILE* file, DBusMessageIter *iter)
 }
 
 
-int
+static int
 dump_zone_info(FILE* file, DBusMessageIter *iter, int style)
 {
 	int ret = -1;
@@ -200,7 +196,7 @@ dump_zone_info(FILE* file, DBusMessageIter *iter, int style)
 	return ret;
 }
 
-int
+static int
 get_zone_info(DBusConnection *connection, int timeout, int zoneId, DBusMessage** reply, DBusMessageIter *iter, DBusError *error)
 {
 	int ret = ERRORCODE_UNKNOWN;

@@ -71,6 +71,16 @@ concordd_dbus_path_is_output(const char* path)
     return strhasprefix(path, CONCORDD_DBUS_PATH_OUTPUT);
 }
 
+static bool
+concordd_dbus_path_is_light(const char* path)
+{
+	static const char* light_dir = "/light/";
+	if (concordd_dbus_path_is_partition(path)) {
+		return strstr(path, light_dir) != NULL;
+	}
+	return false;
+}
+
 static int
 concordd_zone_index_from_dbus_path(const char* path, concordd_instance_t instance)
 {
@@ -130,6 +140,35 @@ concordd_partition_from_dbus_path(const char* path, concordd_instance_t instance
 
     return NULL;
 }
+
+static int
+concordd_light_index_from_dbus_path(const char* path, concordd_instance_t instance)
+{
+	static const char* light_dir = "/light/";
+    if (concordd_dbus_path_is_light(path)) {
+		path = strstr(path, light_dir);
+		if (path != NULL) {
+			return strtol(path + strlen(light_dir), NULL, 10);
+		}
+	}
+    return -1;
+}
+
+static concordd_light_t
+concordd_light_from_dbus_path(const char* path, concordd_instance_t instance)
+{
+    int p = concordd_partition_index_from_dbus_path(path, instance);
+    int l = concordd_light_index_from_dbus_path(path, instance);
+    if ((p >= 0) && (l >= 0)) {
+        concordd_partition_t partition = concordd_get_partition(instance, p);
+		if (partition != NULL) {
+			return concordd_partition_get_light(partition, l);
+		}
+    }
+
+    return NULL;
+}
+
 
 static DBusHandlerResult
 concordd_dbus_handle_system_get_partitions(
@@ -599,6 +638,204 @@ bail:
 }
 
 static DBusHandlerResult
+concordd_dbus_handle_output_get_info(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    const char* path = dbus_message_get_path(message);
+    const int partition_index = concordd_partition_index_from_dbus_path(path, self->instance);
+    const int output_index = concordd_output_index_from_dbus_path(path, self->instance);
+	concordd_output_t output = concordd_output_from_dbus_path(path, self->instance);
+    DBusMessage *reply = dbus_message_new_method_return(message);
+    ge_rs232_status_t status;
+
+    if (output_index < 0 || output == NULL || !output->active) {
+        goto bail;
+    }
+
+    syslog(LOG_DEBUG, "Sending DBus response for \"%s\" to \"%s\"", dbus_message_get_member(message), dbus_message_get_sender(message));
+
+    if (!reply) {
+        goto bail;
+    }
+
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    dbus_message_iter_init_append(reply, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+    cstr = CONCORDD_DBUS_CLASS_NAME_OUTPUT;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_CLASS_NAME,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+	i = output_index;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_OUTPUT_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	if (output->encoded_name_len > 0) {
+		cstr = ge_text_to_ascii_one_line(
+			output->encoded_name,
+			output->encoded_name_len
+		);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_NAME,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+    i = output->partition_id;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_PARTITION_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	b = output->output_state;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_VALUE,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+	cstr = ge_user_to_cstr(NULL, output->last_changed_by);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_LAST_CHANGED_BY,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+	i = (int32_t)output->last_changed_at;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_LAST_CHANGED_AT,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, reply, NULL);
+
+    ret = DBUS_HANDLER_RESULT_HANDLED;
+bail:
+    dbus_message_unref(reply);
+    return ret;
+}
+
+
+static DBusHandlerResult
+concordd_dbus_handle_light_get_info(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    const char* path = dbus_message_get_path(message);
+    const int partition_index = concordd_partition_index_from_dbus_path(path, self->instance);
+    const int light_index = concordd_light_index_from_dbus_path(path, self->instance);
+	concordd_light_t light = concordd_light_from_dbus_path(path, self->instance);
+    DBusMessage *reply = dbus_message_new_method_return(message);
+    ge_rs232_status_t status;
+
+    if (light_index < 0 || light == NULL) {
+        goto bail;
+    }
+
+    syslog(LOG_DEBUG, "Sending DBus response for \"%s\" to \"%s\"", dbus_message_get_member(message), dbus_message_get_sender(message));
+
+    if (!reply) {
+        goto bail;
+    }
+
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    dbus_message_iter_init_append(reply, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+    cstr = CONCORDD_DBUS_CLASS_NAME_LIGHT;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_CLASS_NAME,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+	i = light_index;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_LIGHT_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+    i = partition_index;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_PARTITION_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	i = light->zone_id;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_ZONE_ID,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	b = light->light_state;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_VALUE,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+	cstr = ge_user_to_cstr(NULL, light->last_changed_by);
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_LAST_CHANGED_BY,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+	i = (int)light->last_changed_at;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_LAST_CHANGED_AT,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, reply, NULL);
+
+    ret = DBUS_HANDLER_RESULT_HANDLED;
+bail:
+    dbus_message_unref(reply);
+    return ret;
+}
+
+static DBusHandlerResult
 concordd_dbus_handle_zone_get_info(
     concordd_dbus_server_t self,
     DBusConnection *connection,
@@ -950,22 +1187,22 @@ dbus_message_handler(
                                     CONCORDD_DBUS_CMD_SET_VALUE)) {
         if (concordd_dbus_path_is_output(path)) {
             return concordd_dbus_handle_output_set_value(self, connection, message);
-//        } else if (concordd_dbus_path_is_light(path)) {
+        } else if (concordd_dbus_path_is_light(path)) {
 //            return concordd_dbus_handle_light_set_value(self, connection, message);
         }
 
     } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,
                                     CONCORDD_DBUS_CMD_GET_INFO)) {
-        if (concordd_dbus_path_is_partition(path)) {
+        if (concordd_dbus_path_is_output(path)) {
+            return concordd_dbus_handle_output_get_info(self, connection, message);
+        } else if (concordd_dbus_path_is_zone(path)) {
+            return concordd_dbus_handle_zone_get_info(self, connection, message);
+        } else if (concordd_dbus_path_is_light(path)) {
+            return concordd_dbus_handle_light_get_info(self, connection, message);
+        } else if (concordd_dbus_path_is_partition(path)) {
             return concordd_dbus_handle_partition_get_info(self, connection, message);
         } else if (concordd_dbus_path_is_system(path)) {
             return concordd_dbus_handle_system_get_info(self, connection, message);
-        } else if (concordd_dbus_path_is_output(path)) {
-            //return concordd_dbus_handle_output_get_info(self, connection, message);
-        } else if (concordd_dbus_path_is_zone(path)) {
-            return concordd_dbus_handle_zone_get_info(self, connection, message);
-        //} else if (concordd_dbus_path_is_light(path)) {
-            //return concordd_dbus_handle_light_get_info(self, connection, message);
         }
 
     } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,

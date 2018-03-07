@@ -254,6 +254,7 @@ concordd_zone_t concordd_get_zone(concordd_instance_t self, int i);
 concordd_user_t concordd_get_user(concordd_instance_t self, int i);
 
 int concordd_get_light_index(concordd_instance_t self, concordd_partition_t partition, concordd_light_t light);
+concordd_light_t concordd_partition_get_light(concordd_partition_t self, int i);
 
 int concordd_get_output_index(concordd_instance_t self, concordd_output_t output);
 concordd_output_t concordd_get_output(concordd_instance_t self, int i);

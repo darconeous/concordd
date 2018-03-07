@@ -27,6 +27,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define STYLE_TABLE 0
+#define STYLE_JSON 1
+#define STYLE_RAW 2
 
 #define ERRORCODE_OK            (0)
 #define ERRORCODE_HELP          (1)

@@ -111,6 +111,8 @@
 
 #define CONCORDD_DBUS_INFO_VALUE     "value"
 
+#define CONCORDD_DBUS_INFO_OUTPUT_ID     "outputId"  // unsigned int
+
 #define CONCORDD_DBUS_INFO_LIGHT_ID     "lightId"  // unsigned int
 #define CONCORDD_DBUS_INFO_LAST_CHANGED_BY     "lastChangedBy"  // unsigned int
 #define CONCORDD_DBUS_INFO_LAST_CHANGED_AT     "lastChangedAt"  // unsigned int
