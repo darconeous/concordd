@@ -34,8 +34,13 @@ concordctl_SOURCES = \
 	../common/config-file.c \
 	../common/string-utils.c \
 	concordctl-cmds.h \
-	tool-cmd-set-arm-level.c tool-cmd-set-arm-level.h \
-    tool-cmd-press-keys.c tool-cmd-press-keys.h \
+	tool-cmd-arm.c tool-cmd-arm.h \
+	tool-cmd-log.c tool-cmd-log.h \
+    tool-cmd-keypad.c tool-cmd-keypad.h \
+    tool-cmd-keypad-emu.c \
+    tool-cmd-zone.c tool-cmd-zone.h \
+    tool-cmd-light.c tool-cmd-light.h \
+    tool-cmd-output.c tool-cmd-output.h \
     tool-cmd-partition-info.c tool-cmd-partition-info.h \
 	$(NULL)
 

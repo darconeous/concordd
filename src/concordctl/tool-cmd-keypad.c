@@ -30,7 +30,7 @@
 #include <unistd.h>
 
 #include "concordctl-utils.h"
-#include "tool-cmd-press-keys.h"
+#include "tool-cmd-keypad.h"
 #include "assert-macros.h"
 #include "args.h"
 #include "concordd-dbus.h"
@@ -125,7 +125,7 @@ bail:
 }
 
 int
-tool_cmd_press_keys(int argc, char *argv[])
+tool_cmd_keypad_input(int argc, char *argv[])
 {
     static const int set = 1;
     int ret = 0;
@@ -204,3 +204,11 @@ bail:
 
     return ret;
 }
+
+int
+tool_cmd_keypad_text(int argc, char *argv[])
+{
+    fprintf(stderr, "%s: error: Not yet implemented\n", argv[0]);
+	return -1;
+}
+

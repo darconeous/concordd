@@ -17,11 +17,11 @@
  *
  */
 
-#ifndef CONCORDCTL_TOOL_CMD_PRESS_KEYS_H
-#define CONCORDCTL_TOOL_CMD_PRESS_KEYS_H
+#ifndef CONCORDCTL_TOOL_CMD_LOG_H
+#define CONCORDCTL_TOOL_CMD_LOG_H
 
 #include "concordctl-utils.h"
 
-int tool_cmd_press_keys(int argc, char* argv[]);
+int tool_cmd_log(int argc, char* argv[]);
 
 #endif

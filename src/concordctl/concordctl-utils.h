@@ -27,6 +27,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define STYLE_TABLE 0
+#define STYLE_JSON 1
+#define STYLE_RAW 2
 
 #define ERRORCODE_OK            (0)
 #define ERRORCODE_HELP          (1)
@@ -64,5 +67,10 @@ void dump_info_from_iter(FILE* file, DBusMessageIter *iter, int indent, bool bar
 
 extern int gPartitionIndex;
 extern int gRet;
+
+extern void interrupt_trap_begin();
+extern void interrupt_trap_end();
+extern bool interrupt_trap_was_interrupted();
+
 
 #endif

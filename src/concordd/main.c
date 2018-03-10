@@ -114,6 +114,7 @@ static const char* gSystemTroubleCommand;
 static const char* gSystemEventCommand;
 static const char* gLightChangedCommand;
 static const char* gOutputChangedCommand;
+static const char* gZoneChangedCommand;
 
 #if HAVE_PWD_H
 static const char* gPrivDropToUser = CONCORDD_DEFAULT_PRIV_DROP_USER;
@@ -274,6 +275,15 @@ set_config_param(
         }
         ret = 0;
 
+	} else if (strcaseequal(key, kCONCORDDConfig_ZoneChangedCommand)) {
+        if (value[0] == 0) {
+            gZoneChangedCommand = NULL;
+        } else {
+            gZoneChangedCommand = strdup(value);
+        }
+        ret = 0;
+
+
 	} else if (strcaseequal(key, kCONCORDDConfig_PIDFile)) {
 		if (gPIDFilename)
 			goto bail;
@@ -383,6 +393,28 @@ send_bytes_func(struct concordd_state_s* context, const uint8_t* data, int len, 
 }
 
 void
+concordd_partition_info_changed_func(void* context, concordd_instance_t instance, concordd_partition_t partition, int changed)
+{
+    struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
+
+	// Pass-thru to D-Bus first.
+	concordd_dbus_partition_info_changed_func(&concordd_state->dbus_server, instance, partition, changed);
+
+	// TODO: Now handle via system
+}
+
+void
+concordd_zone_info_changed_func(void* context, concordd_instance_t instance, concordd_zone_t zone, int changed)
+{
+    struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
+
+	// Pass-thru to D-Bus first.
+	concordd_dbus_zone_info_changed_func(&concordd_state->dbus_server, instance, zone, changed);
+
+	// TODO: Now handle via system
+}
+
+void
 concordd_event_func(void* context, concordd_instance_t instance, concordd_event_t event)
 {
     struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
@@ -478,7 +510,7 @@ concordd_event_func(void* context, concordd_instance_t instance, concordd_event_
                 if (zone) {
                     const char* zone_name = ge_text_to_ascii_one_line(zone->encoded_name, zone->encoded_name_len);
                     setenv("CONCORDD_ZONE_NAME", zone_name, 1);
-                    snprintf(value, sizeof(value), "%s %s \"%s\" (%d.%d) ZONE %d: %s",
+                    snprintf(value, sizeof(value), "%s %s [%s] (%d.%d) ZONE %d: %s",
                         getenv("CONCORDD_EVENT_STATUS"),
                         getenv("CONCORDD_TYPE"),
                         specific_desc,
@@ -494,7 +526,7 @@ concordd_event_func(void* context, concordd_instance_t instance, concordd_event_
                 setenv("CONCORDD_UNIT_ID", value, 1);
                 setenv("CONCORDD_EVENT_SOURCE_ID", value, 1);
 
-                    snprintf(value, sizeof(value), "%s %s \"%s\" (%d.%d) UNIT %d",
+                    snprintf(value, sizeof(value), "%s %s [%s] (%d.%d) UNIT %d",
                         getenv("CONCORDD_EVENT_STATUS"),
                         getenv("CONCORDD_TYPE"),
                         specific_desc,
@@ -619,6 +651,14 @@ concordd_output_info_changed_func(void* context, concordd_instance_t instance, c
     }
 }
 
+void
+concordd_siren_sync_func(void* context,  concordd_instance_t instance)
+{
+    struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
+
+    // Pass-thru to D-Bus first.
+    concordd_dbus_siren_sync_func(&concordd_state->dbus_server, instance);
+}
 
 /* ------------------------------------------------------------------------- */
 /* MARK: Main Function */
@@ -881,6 +921,9 @@ main(int argc, char * argv[])
     concordd_state.instance.event_func = &concordd_event_func;
     concordd_state.instance.light_info_changed_func = &concordd_light_info_changed_func;
     concordd_state.instance.output_info_changed_func = &concordd_output_info_changed_func;
+	concordd_state.instance.zone_info_changed_func = &concordd_zone_info_changed_func;
+	concordd_state.instance.partition_info_changed_func = &concordd_partition_info_changed_func;
+	concordd_state.instance.siren_sync_func = &concordd_siren_sync_func;
 
 	// ========================================================================
 	// MAIN LOOP

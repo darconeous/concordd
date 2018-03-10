@@ -17,11 +17,11 @@
  *
  */
 
-#ifndef CONCORDCTL_TOOL_CMD_SET_ARM_LEVEL_H
-#define CONCORDCTL_TOOL_CMD_SET_ARM_LEVEL_H
+#ifndef CONCORDCTL_TOOL_CMD_OUTPUT_H
+#define CONCORDCTL_TOOL_CMD_OUTPUT_H
 
 #include "concordctl-utils.h"
 
-int tool_cmd_set_arm_level(int argc, char* argv[]);
+int tool_cmd_output(int argc, char* argv[]);
 
 #endif
