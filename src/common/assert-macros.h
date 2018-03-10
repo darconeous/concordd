@@ -54,6 +54,9 @@
 #include <syslog.h>
 #endif
 
+// Ignores return value from function 's'
+#define IGNORE_RETURN_VALUE(s)  do { if (s){} } while (0)
+
 #if HAVE_ASSERTMACROS_H
  #include <AssertMacros.h>
 #else

@@ -26,15 +26,53 @@
 #include "string-utils.h"
 #include "concordctl-utils.h"
 #include "concordd-dbus.h"
+#include <unistd.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <signal.h>
 
 int gPartitionIndex = 1;
 int gRet = 0;
+
+static bool gDidInterrupt = false;
+static sig_t gPreviousHandlerForSIGINT;
+
+static void
+signal_SIGINT(int sig)
+{
+    static const char message[] = "\nCaught SIGINT!\n";
+
+    gRet = ERRORCODE_INTERRUPT;
+
+    // Can't use syslog() because it isn't async signal safe.
+    // So we write to stderr
+    (void)write(STDERR_FILENO, message, sizeof(message)-1);
+
+	gDidInterrupt = true;
+
+	interrupt_trap_end();
+}
+
+void
+interrupt_trap_begin() {
+	gDidInterrupt = false;
+	gPreviousHandlerForSIGINT = signal(SIGINT, &signal_SIGINT);
+}
+
+void
+interrupt_trap_end() {
+	signal(SIGINT, &gPreviousHandlerForSIGINT);
+}
+
+bool
+interrupt_trap_was_interrupted() {
+	return gDidInterrupt;
+}
+
 
 void dump_info_from_iter(FILE* file, DBusMessageIter *iter, int indent, bool bare, bool indentFirstLine)
 {

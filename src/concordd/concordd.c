@@ -63,6 +63,14 @@ concordd_partition_info_changed(concordd_instance_t self, concordd_partition_t p
     }
 }
 
+void
+concordd_zone_info_changed(concordd_instance_t self, concordd_zone_t zone, int changed)
+{
+    if (self->zone_info_changed_func != NULL) {
+        (*self->zone_info_changed_func)(self->context, self, zone, changed);
+    }
+}
+
 concordd_zone_t
 concordd_get_zone(concordd_instance_t self, int i)
 {
@@ -89,6 +97,16 @@ concordd_get_output(concordd_instance_t self, int i)
     }
     return NULL;
 }
+
+int
+concordd_get_zone_index(concordd_instance_t self, concordd_zone_t zone)
+{
+    if (zone == NULL) {
+        return -1;
+    }
+    return (int)(zone - self->zone);
+}
+
 
 int
 concordd_get_output_index(concordd_instance_t self, concordd_output_t output)
@@ -439,14 +457,27 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
         partition = concordd_get_partition(self, frame_bytes[2]);
 
         if (partition != NULL) {
+            int changed = 0;
+            uint32_t cadence = (frame_bytes[5]<<24)
+                | (frame_bytes[6]<<16)
+                | (frame_bytes[7]<<8)
+                | (frame_bytes[8]<<0);
+
             partition->active = true;
+			self->siren_go_partition_id = frame_bytes[2];
+
             partition->siren_repeat = frame_bytes[4];
-            partition->siren_cadence
-                = (frame_bytes[8]<<24)
-                | (frame_bytes[7]<<16)
-                | (frame_bytes[6]<<8)
-                | (frame_bytes[5]<<0);
-            concordd_partition_info_changed(self, partition, CONCORDD_PARTITION_SIREN_REPEAT_CHANGED | CONCORDD_PARTITION_SIREN_CADENCE_CHANGED);
+            changed |= CONCORDD_PARTITION_SIREN_REPEAT_CHANGED;
+
+            partition->siren_cadence = cadence;
+            changed |= CONCORDD_PARTITION_SIREN_CADENCE_CHANGED;
+
+			partition->siren_started_at = time(NULL);
+            changed |= CONCORDD_PARTITION_SIREN_STARTED_AT_CHANGED;
+
+            if (partition->siren_repeat == 0) {
+				concordd_partition_info_changed(self, partition, changed);
+			}
         }
 
 		syslog(LOG_INFO,
@@ -460,16 +491,28 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			frame_bytes[8]
 		);
 		break;
-	case GE_RS232_PTA_SUBCMD_SIREN_GO:
-        syslog(LOG_INFO,"[SIREN_GO]");
-		break;
 	case GE_RS232_PTA_SUBCMD_SIREN_STOP:
-        syslog(LOG_INFO,"[SIREN_STOP]");
+		partition = concordd_get_partition(self, frame_bytes[2]);
+		if (partition != NULL) {
+			partition->siren_cadence = 0;
+            concordd_partition_info_changed(self, partition, CONCORDD_PARTITION_SIREN_CADENCE_CHANGED);
+		}
+		break;
+	case GE_RS232_PTA_SUBCMD_SIREN_GO:
+		partition = concordd_get_partition(self, self->siren_go_partition_id);
+        if ((partition != NULL) && partition->siren_cadence != 0) {
+            int changed = 0;
+
+			changed |= CONCORDD_PARTITION_SIREN_REPEAT_CHANGED;
+            changed |= CONCORDD_PARTITION_SIREN_CADENCE_CHANGED;
+            changed |= CONCORDD_PARTITION_SIREN_STARTED_AT_CHANGED;
+
+            concordd_partition_info_changed(self, partition, changed);
+		}
 		break;
 	case GE_RS232_PTA_SUBCMD_SIREN_SYNC:
-        //syslog(LOG_INFO,"[SIREN_SYNC]");
-		if (self->partition_siren_sync_func != NULL) {
-			(*self->partition_siren_sync_func)(self->context, self);
+		if (self->siren_sync_func != NULL) {
+			(*self->siren_sync_func)(self->context, self);
 		}
 		break;
 	case GE_RS232_PTA_SUBCMD_TOUCHPAD_DISPLAY:
@@ -484,7 +527,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			partition->encoded_touchpad_text_len = frame_len-5;
 			memcpy(partition->encoded_touchpad_text, frame_bytes+5, frame_len-5);
 
-            syslog((partitioni == 1)?LOG_NOTICE:LOG_INFO,
+            syslog(LOG_INFO,
                 "[TOUCHPAD] PN:%d \"%s\"",
                 partitioni,
                 ge_text_to_ascii_one_line(partition->encoded_touchpad_text,partition->encoded_touchpad_text_len)
@@ -559,14 +602,15 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			int i = frame_bytes[2];
 			concordd_partition_t partition = concordd_get_partition(self, i);
 			if (partition != NULL) {
-				uint8_t feature_state = frame_bytes[4];
-				uint8_t changed_features = partition->feature_state^feature_state;
+				uint8_t new_state = frame_bytes[4];
+				int changed_features = partition->feature_state;
+
+				changed_features ^= new_state;
+				partition->feature_state = new_state;
                 partition->active = true;
 
-				partition->feature_state = feature_state;
-
-				if (changed_features != 0 && self->partition_siren_sync_func != NULL) {
-					(*self->partition_info_changed_func)(self->context, self, partition, changed_features<<8);
+				if (changed_features != 0) {
+					concordd_partition_info_changed(self, partition, changed_features<<8);
 				}
 			}
 		}
@@ -617,12 +661,12 @@ concordd_handle_zone_status(concordd_instance_t self, const uint8_t* frame_bytes
 		zone->zone_state = state;
         zone->active = true;
 
-		if (changed_state != 0 && self->zone_info_changed_func != NULL) {
-			(*self->zone_info_changed_func)(self->context, self, zone, changed_state<<8);
+		if (changed_state != 0) {
+			concordd_zone_info_changed(self, zone, changed_state<<8);
 		}
 
         if (changed_state != 0) {
-            syslog(LOG_NOTICE,
+            syslog(LOG_INFO,
                 "[ZONE] PN:%d ZONE:%d \"%s\" STATUS:%s%s%s%s%s",
                 zone->partition_id,
                 zonei,
@@ -671,8 +715,8 @@ concordd_handle_equip_list_zone_data(concordd_instance_t self, const uint8_t* fr
 		zone->encoded_name_len = frame_len-8;
 		memcpy(zone->encoded_name,frame_bytes+8, frame_len-8);
 
-		if (changes != 0 && self->zone_info_changed_func != NULL) {
-			(*self->zone_info_changed_func)(self->context, self, zone, changes);
+		if (changes != 0) {
+			concordd_zone_info_changed(self, zone, changes);
 		}
 
         syslog(LOG_NOTICE,"[EQUIP_LIST_ZONE_INFO] ZONE:%d PN:%d AREA:%d TYPE:%d GROUP:%d STATUS:%s%s%s%s%s TEXT:\"%s\"",

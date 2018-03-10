@@ -169,6 +169,7 @@ struct concordd_user_s {
 #define CONCORDD_PARTITION_CURRENT_TEMP_CHANGED				(1<<20)
 #define CONCORDD_PARTITION_ENERGY_SAVER_LOW_TEMP_CHANGED	(1<<21)
 #define CONCORDD_PARTITION_ENERGY_SAVER_HIGH_TEMP_CHANGED	(1<<22)
+#define CONCORDD_PARTITION_SIREN_STARTED_AT_CHANGED			(1<<23)
 struct concordd_partition_s {
 	bool active;
 	uint8_t arm_level;
@@ -183,6 +184,7 @@ struct concordd_partition_s {
 
 	uint32_t siren_repeat;
 	uint32_t siren_cadence;
+	time_t siren_started_at;
 
 	uint8_t current_temp;
 	uint8_t energy_saver_low_temp;
@@ -214,7 +216,7 @@ struct concordd_instance_s {
 	uint16_t sw_rev;
 	uint32_t serial_number;
 
-	uint8_t siren_sync_partition_id;
+	uint8_t siren_go_partition_id;
 
     struct concordd_event_s trouble_events[CONCORDD_SYSTEM_TROUBLE_TYPE_MAX];
 
@@ -229,7 +231,7 @@ struct concordd_instance_s {
 	void (*instance_info_changed_func)(void* context, concordd_instance_t instance, int changed);
 	void (*keyfob_button_pressed_func)(void* context, concordd_instance_t instance, int button);
 	void (*partition_info_changed_func)(void* context, concordd_instance_t instance, concordd_partition_t partition, int changed);
-	void (*partition_siren_sync_func)(void* context, concordd_instance_t instance);
+	void (*siren_sync_func)(void* context, concordd_instance_t instance);
 	void (*zone_info_changed_func)(void* context, concordd_instance_t instance, concordd_zone_t zone, int changed);
 	void (*light_info_changed_func)(void* context, concordd_instance_t instance, concordd_partition_t partition, concordd_light_t light, int changed);
 	void (*output_info_changed_func)(void* context, concordd_instance_t instance, concordd_output_t output, int changed);
@@ -249,6 +251,7 @@ ge_rs232_status_t concordd_set_arm_level(concordd_instance_t self, int partition
 int concordd_get_partition_index(concordd_instance_t self, concordd_partition_t partition);
 concordd_partition_t concordd_get_partition(concordd_instance_t self, int i);
 
+int concordd_get_zone_index(concordd_instance_t self, concordd_zone_t zone);
 concordd_zone_t concordd_get_zone(concordd_instance_t self, int i);
 
 concordd_user_t concordd_get_user(concordd_instance_t self, int i);

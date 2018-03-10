@@ -66,7 +66,7 @@ dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 	if (!did_write_table_header) {
 		did_write_table_header = true;
 		fprintf(file, " %30.30s ", "Zone Name");
-		fprintf(file, "| Id ", zoneId);
+		fprintf(file, "| Id ");
 		fprintf(file, "|Par");
 		fprintf(file, "|Typ");
 		fprintf(file, "| Grp");

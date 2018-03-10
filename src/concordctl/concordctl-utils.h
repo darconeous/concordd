@@ -68,4 +68,9 @@ void dump_info_from_iter(FILE* file, DBusMessageIter *iter, int indent, bool bar
 extern int gPartitionIndex;
 extern int gRet;
 
+extern void interrupt_trap_begin();
+extern void interrupt_trap_end();
+extern bool interrupt_trap_was_interrupted();
+
+
 #endif

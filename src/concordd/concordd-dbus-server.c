@@ -300,49 +300,50 @@ concordd_dbus_handle_partition_set_arm_level(
     return DBUS_HANDLER_RESULT_HANDLED;
 }
 
-//static DBusHandlerResult
-//concordd_dbus_handle_partition_set_light(
-//    concordd_dbus_server_t self,
-//    DBusConnection *connection,
-//    DBusMessage *   message
-//) {
-//    const char* path = dbus_message_get_path(message);
-//    int partition_index = concordd_partition_index_from_dbus_path(path, self->instance);
-//    struct concordd_dbus_callback_helper_s* helper;
-//    ge_rs232_status_t status;
-//    int32_t lighti = -1;
-//    bool state = false;
-//
-//    if (partition_index < 0) {
-//        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-//    }
-//
-//    dbus_message_get_args(
-//        message, NULL,
-//        DBUS_TYPE_INT32, &lighti,
-//        DBUS_TYPE_BOOLEAN, &state,
-//        DBUS_TYPE_INVALID
-//    );
-//
-//    helper = concordd_dbus_callback_helper_new(self, message);
-//
-//    status = concordd_set_light(
-//        self->instance,
-//        partition_index,
-//        lighti,
-//        state,
-//        &concordd_dbus_callback_helper,
-//        (void*)helper);
-//
-//    if (status < 0) {
-//        if (status == GE_RS232_STATUS_ALREADY) {
-//            status = GE_RS232_STATUS_OK;
-//        }
-//        concordd_dbus_callback_helper((void*)helper, status);
-//    }
-//
-//    return DBUS_HANDLER_RESULT_HANDLED;
-//}
+static DBusHandlerResult
+concordd_dbus_handle_light_set_value(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    const char* path = dbus_message_get_path(message);
+    const int partition_index = concordd_partition_index_from_dbus_path(path, self->instance);
+    const int light_index = concordd_light_index_from_dbus_path(path, self->instance);
+	concordd_light_t light = concordd_light_from_dbus_path(path, self->instance);
+    struct concordd_dbus_callback_helper_s* helper;
+    bool state = false;
+    ge_rs232_status_t status;
+
+    if (light_index < 0 || light == NULL) {
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+
+    dbus_message_get_args(
+        message, NULL,
+        DBUS_TYPE_BOOLEAN, &state,
+        DBUS_TYPE_INVALID
+    );
+
+    helper = concordd_dbus_callback_helper_new(self, message);
+
+    status = concordd_set_light(
+        self->instance,
+        partition_index,
+        light_index,
+        state,
+        &concordd_dbus_callback_helper,
+        (void*)helper);
+
+    if (status < 0) {
+        if (status == GE_RS232_STATUS_ALREADY) {
+            status = GE_RS232_STATUS_OK;
+        }
+        concordd_dbus_callback_helper((void*)helper, status);
+    }
+
+    return DBUS_HANDLER_RESULT_HANDLED;
+}
 
 static DBusHandlerResult
 concordd_dbus_handle_output_set_value(
@@ -350,20 +351,21 @@ concordd_dbus_handle_output_set_value(
     DBusConnection *connection,
     DBusMessage *   message
 ) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     const char* path = dbus_message_get_path(message);
-    int partition_index = concordd_partition_index_from_dbus_path(path, self->instance);
+    const int partition_index = concordd_partition_index_from_dbus_path(path, self->instance);
+    const int output_index = concordd_output_index_from_dbus_path(path, self->instance);
+	concordd_output_t output = concordd_output_from_dbus_path(path, self->instance);
     struct concordd_dbus_callback_helper_s* helper;
-    ge_rs232_status_t status;
-    int32_t outputi = -1;
     bool state = false;
+    ge_rs232_status_t status;
 
-    if (partition_index < 0) {
+    if (output_index < 0 || output == NULL) {
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
 
     dbus_message_get_args(
         message, NULL,
-        DBUS_TYPE_INT32, &outputi,
         DBUS_TYPE_BOOLEAN, &state,
         DBUS_TYPE_INVALID
     );
@@ -372,7 +374,7 @@ concordd_dbus_handle_output_set_value(
 
     status = concordd_set_output(
         self->instance,
-        outputi,
+        output_index,
         state,
         &concordd_dbus_callback_helper,
         (void*)helper);
@@ -511,6 +513,33 @@ concordd_dbus_handle_partition_get_info(
     i = partition->arm_level;
     append_dict_entry(&dict,
                       CONCORDD_DBUS_INFO_ARM_LEVEL,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	i = partition->siren_repeat;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_SIREN_REPEAT,
+                      DBUS_TYPE_INT32,
+                      &i);
+
+	{
+		char cadence[33];
+		for(i=0;i<32;i++) {
+			cadence[i] = (partition->siren_cadence&(1<<(31-i)))
+				? '1'
+				: '0';
+		}
+		cadence[32] = 0;
+		cstr = cadence;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SIREN_CADENCE,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+	i = partition->siren_started_at;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_SIREN_STARTED_AT,
                       DBUS_TYPE_INT32,
                       &i);
 
@@ -813,11 +842,13 @@ concordd_dbus_handle_light_get_info(
                       DBUS_TYPE_BOOLEAN,
                       &b);
 
+	/*
 	cstr = ge_user_to_cstr(NULL, light->last_changed_by);
     append_dict_entry(&dict,
                       CONCORDD_DBUS_INFO_LAST_CHANGED_BY,
                       DBUS_TYPE_STRING,
                       &cstr);
+	*/
 
 	i = (int)light->last_changed_at;
     append_dict_entry(&dict,
@@ -1101,16 +1132,313 @@ concordd_dbus_keyfob_button_pressed_func(concordd_dbus_server_t self, concordd_i
 void
 concordd_dbus_partition_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_partition_t partition, int changed)
 {
+    char path[120] = {0};
+    const char* name = CONCORDD_DBUS_SIGNAL_CHANGED;
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    DBusMessage *message = NULL;
+	int partition_id = concordd_get_partition_index(instance, partition);
+
+	if (changed == 0) {
+		goto bail;
+	}
+
+	snprintf(path, sizeof(path), "%s%d", CONCORDD_DBUS_PATH_PARTITION, partition_id);
+
+    message = dbus_message_new_signal(
+        path,
+        CONCORDD_DBUS_INTERFACE,
+        name
+    );
+
+    dbus_message_iter_init_append(message, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+	if (changed & CONCORDD_PARTITION_TOUCHPAD_TEXT_CHANGED) {
+		cstr = ge_text_to_ascii_one_line(
+			partition->encoded_touchpad_text,
+			partition->encoded_touchpad_text_len
+		);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_TOUCHPAD_TEXT,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+	if (changed & CONCORDD_PARTITION_SIREN_REPEAT_CHANGED) {
+		i = partition->siren_repeat;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SIREN_REPEAT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_PARTITION_SIREN_CADENCE_CHANGED) {
+		char cadence[33];
+		for(i=0;i<32;i++) {
+			cadence[i] = (partition->siren_cadence&(1<<(31-i)))
+				? '1'
+				: '0';
+		}
+		cadence[32] = 0;
+		cstr = cadence;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SIREN_CADENCE,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+	if (changed & CONCORDD_PARTITION_SIREN_STARTED_AT_CHANGED) {
+		i = partition->siren_started_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SIREN_STARTED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_PARTITION_ARM_LEVEL_CHANGED) {
+		i = partition->arm_level;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_ARM_LEVEL,
+						  DBUS_TYPE_INT32,
+						  &i);
+		cstr = ge_user_to_cstr(NULL,partition->arm_level_user);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_ARM_LEVEL_USER,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+	if (changed & CONCORDD_PARTITION_CHIME_CHANGED) {
+		b = !!(partition->feature_state & GE_RS232_FEATURE_STATE_CHIME);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_CHIME,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+
+	}
+
+	if (changed & CONCORDD_PARTITION_ENERGY_SAVER_CHANGED) {
+		b = !!(partition->feature_state & GE_RS232_FEATURE_STATE_ENERGY_SAVER);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_ENERGY_SAVER,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+
+	}
+
+	if (changed & CONCORDD_PARTITION_NO_DELAY_CHANGED) {
+		b = !!(partition->feature_state & GE_RS232_FEATURE_STATE_NO_DELAY);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_NO_DELAY,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+
+	}
+
+	if (changed & CONCORDD_PARTITION_LATCH_KEY_CHANGED) {
+		b = !!(partition->feature_state & GE_RS232_FEATURE_STATE_LATCHKEY);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LATCH_KEY,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+
+	}
+
+	if (changed & CONCORDD_PARTITION_SILENT_ARMING_CHANGED) {
+		b = !!(partition->feature_state & GE_RS232_FEATURE_STATE_SILENT_ARMING);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SILENT_ARM,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+
+	}
+
+	if (changed & CONCORDD_PARTITION_QUICK_ARM_CHANGED) {
+		b = !!(partition->feature_state & GE_RS232_FEATURE_STATE_QUICK_ARM);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_QUICK_ARM,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, message, NULL);
+
+bail:
+    if (message != NULL) {
+        dbus_message_unref(message);
+    }
 }
 
 void
 concordd_dbus_siren_sync_func(concordd_dbus_server_t self, concordd_instance_t instance)
 {
+    DBusMessage *message = NULL;
+
+    message = dbus_message_new_signal(
+        CONCORDD_DBUS_PATH_ROOT,
+        CONCORDD_DBUS_INTERFACE,
+        CONCORDD_DBUS_SIGNAL_SIREN_SYNC
+    );
+
+    if (message) {
+		dbus_connection_send(self->dbus_connection, message, NULL);
+	}
+
+bail:
+    if (message != NULL) {
+        dbus_message_unref(message);
+    }
 }
 
 void
 concordd_dbus_zone_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_zone_t zone, int changed)
 {
+    char path[120] = {0};
+    const char* name = CONCORDD_DBUS_SIGNAL_CHANGED;
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    DBusMessage *message = NULL;
+	int zone_id = concordd_get_zone_index(instance, zone);
+
+	if (changed == 0) {
+		goto bail;
+	}
+
+	snprintf(path, sizeof(path), "%s%d", CONCORDD_DBUS_PATH_ZONE, zone_id);
+
+    message = dbus_message_new_signal(
+        path,
+        CONCORDD_DBUS_INTERFACE,
+        name
+    );
+
+    dbus_message_iter_init_append(message, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+	if (changed & CONCORDD_ZONE_LAST_TRIPPED_AT_CHANGED) {
+		i = (int32_t)zone->last_tripped_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_CHANGED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_ZONE_ENCODED_NAME_CHANGED) {
+		cstr = ge_text_to_ascii_one_line(
+			zone->encoded_name,
+			zone->encoded_name_len
+		);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_NAME,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+	if (changed & CONCORDD_ZONE_PARTITION_ID_CHANGED) {
+		i = zone->partition_id;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_PARTITION_ID,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_ZONE_TYPE_CHANGED) {
+		i = zone->type;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_TYPE,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_ZONE_GROUP_CHANGED) {
+		i = zone->group;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_GROUP,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_ZONE_TRIPPED_CHANGED) {
+		b = (zone->zone_state&GE_RS232_ZONE_STATUS_TRIPPED) == GE_RS232_ZONE_STATUS_TRIPPED;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_IS_TRIPPED,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_ZONE_FAULT_CHANGED) {
+		b = (zone->zone_state&GE_RS232_ZONE_STATUS_FAULT) == GE_RS232_ZONE_STATUS_FAULT;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_IS_FAULT,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_ZONE_ALARM_CHANGED) {
+		b = (zone->zone_state&GE_RS232_ZONE_STATUS_ALARM) == GE_RS232_ZONE_STATUS_ALARM;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_IS_ALARM,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_ZONE_TROUBLE_CHANGED) {
+		b = (zone->zone_state&GE_RS232_ZONE_STATUS_TROUBLE) == GE_RS232_ZONE_STATUS_TROUBLE;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_IS_TROUBLE,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_ZONE_BYPASSED_CHANGED) {
+		b = (zone->zone_state&GE_RS232_ZONE_STATUS_BYPASSED) == GE_RS232_ZONE_STATUS_BYPASSED;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_IS_BYPASSED,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, message, NULL);
+
+bail:
+    if (message != NULL) {
+        dbus_message_unref(message);
+    }
 }
 
 void
@@ -1188,7 +1516,7 @@ dbus_message_handler(
         if (concordd_dbus_path_is_output(path)) {
             return concordd_dbus_handle_output_set_value(self, connection, message);
         } else if (concordd_dbus_path_is_light(path)) {
-//            return concordd_dbus_handle_light_set_value(self, connection, message);
+            return concordd_dbus_handle_light_set_value(self, connection, message);
         }
 
     } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,

@@ -35,7 +35,9 @@ concordctl_SOURCES = \
 	../common/string-utils.c \
 	concordctl-cmds.h \
 	tool-cmd-arm.c tool-cmd-arm.h \
+	tool-cmd-log.c tool-cmd-log.h \
     tool-cmd-keypad.c tool-cmd-keypad.h \
+    tool-cmd-keypad-emu.c \
     tool-cmd-zone.c tool-cmd-zone.h \
     tool-cmd-light.c tool-cmd-light.h \
     tool-cmd-output.c tool-cmd-output.h \

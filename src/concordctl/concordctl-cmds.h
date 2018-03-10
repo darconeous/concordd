@@ -23,6 +23,7 @@
 
 //#include "tool-cmd-list-partitions.h"
 #include "tool-cmd-arm.h"
+#include "tool-cmd-log.h"
 #include "tool-cmd-zone.h"
 #include "tool-cmd-light.h"
 #include "tool-cmd-output.h"
@@ -56,6 +57,11 @@
         &tool_cmd_keypad_text \
     }, \
     { \
+        "keypad-emu", \
+        "Emulate a touchpad", \
+        &tool_cmd_keypad_emu \
+    }, \
+    { \
         "zone", \
         "Prints out info for one or more zones", \
         &tool_cmd_zone \
@@ -69,6 +75,11 @@
         "output", \
         "Prints out info for one or more outputs", \
         &tool_cmd_output \
+    }, \
+    { \
+        "log", \
+        "Prints out changes to the system as they occur", \
+        &tool_cmd_log \
     }, \
 //    { \
 //        "list-partitions", \

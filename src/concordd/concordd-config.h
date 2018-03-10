@@ -34,5 +34,6 @@
 #define kCONCORDDConfig_SystemEventCommand "SystemEventCommand"
 #define kCONCORDDConfig_LightChangedCommand "LightChangedCommand"
 #define kCONCORDDConfig_OutputChangedCommand "OutputChangedCommand"
+#define kCONCORDDConfig_ZoneChangedCommand "ZoneChangedCommand"
 
 #endif

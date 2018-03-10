@@ -25,7 +25,6 @@
 #define CONCORDD_DBUS_PATH_PARTITION            CONCORDD_DBUS_PATH_ROOT "/partition/"
 #define CONCORDD_DBUS_PATH_ZONE                 CONCORDD_DBUS_PATH_ROOT "/zone/"
 #define CONCORDD_DBUS_PATH_OUTPUT               CONCORDD_DBUS_PATH_ROOT "/output/"
-#define CONCORDD_DBUS_PATH_PARTITION            CONCORDD_DBUS_PATH_ROOT "/partition/"
 #define CONCORDD_DBUS_INTERFACE                 "net.voria.concordd.v1"
 
 #define CONCORDD_DBUS_CMD_GET_INFO              "get_info"
@@ -91,6 +90,7 @@
 #define CONCORDD_DBUS_INFO_TOUCHPAD_TEXT     "touchpadText"  // string
 #define CONCORDD_DBUS_INFO_SIREN_REPEAT     "sirenRepeat"  // unsigned int
 #define CONCORDD_DBUS_INFO_SIREN_CADENCE     "sirenCadence"  // uint32
+#define CONCORDD_DBUS_INFO_SIREN_STARTED_AT     "sirenStartedAt"  // uint32
 
 #define CONCORDD_DBUS_INFO_CHIME     "chime"  // bool
 #define CONCORDD_DBUS_INFO_ENERGY_SAVER     "energySaver"  // bool

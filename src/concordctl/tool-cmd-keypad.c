@@ -212,9 +212,3 @@ tool_cmd_keypad_text(int argc, char *argv[])
 	return -1;
 }
 
-int
-tool_cmd_keypad_emu(int argc, char *argv[])
-{
-    fprintf(stderr, "%s: error: Not yet implemented\n", argv[0]);
-	return -1;
-}
