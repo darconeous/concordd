@@ -388,9 +388,9 @@ handle_keypresses(DBusConnection *connection, int timeout, DBusError *error)
 						break;
 					}
 				}
-				if (keys[2] == 'A') {
+				if (keys[2] == 'B') {
 					ret = dispatch_keypress(connection, "[2C]", timeout, error);
-				} else if (keys[2] == 'B') {
+				} else if (keys[2] == 'A') {
 					ret = dispatch_keypress(connection, "[30]", timeout, error);
 				} else {
 					fprintf(stderr,"\r <%s> ",keys+1);
@@ -400,6 +400,8 @@ handle_keypresses(DBusConnection *connection, int timeout, DBusError *error)
 		} else if ((keys[0] == 'q') || (keys[0] == 'Q')) {
 			// Quit
 			ret = -2;
+		} else if (keys[0] == '\n') {
+			ret = dispatch_keypress(connection, "#", timeout, error);
 		} else if ((keys[0] == '*') || (keys[0] == '#')) {
 			ret = dispatch_keypress(connection, keys, timeout, error);
 		} else if ((keys[0] >= 'a') && (keys[0] <= 'f')) {
