@@ -183,8 +183,8 @@ concordd_dynamic_data_refresh(concordd_instance_t self, void (*finished)(void* c
 ge_rs232_status_t
 concordd_refresh(concordd_instance_t self, void (*finished)(void* context,ge_rs232_status_t status), void* context)
 {
-    concordd_equipment_refresh(self, NULL, NULL);
-    return concordd_dynamic_data_refresh(self, finished, context);
+    return concordd_equipment_refresh(self, NULL, NULL);
+//    return concordd_dynamic_data_refresh(self, finished, context);
 }
 
 ge_rs232_status_t
@@ -684,6 +684,129 @@ concordd_handle_zone_status(concordd_instance_t self, const uint8_t* frame_bytes
 }
 
 static ge_rs232_status_t
+concordd_handle_equip_list_partition_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+	int partitioni = frame_bytes[1];
+	concordd_partition_t partition = concordd_get_partition(self, partitioni);
+
+	if (partition != NULL) {
+		int changes = 0;
+
+		partition->active = true;
+
+		if (partition->arm_level != frame_bytes[3]) {
+			changes |= CONCORDD_PARTITION_ARM_LEVEL_CHANGED;
+			partition->arm_level = frame_bytes[3];
+		}
+
+		partition->encoded_touchpad_text_len = frame_len-4;
+		memcpy(partition->encoded_touchpad_text, frame_bytes+4, frame_len-4);
+		changes |= CONCORDD_PARTITION_TOUCHPAD_TEXT_CHANGED;
+
+		if (changes != 0) {
+			concordd_partition_info_changed(self, partition, changes);
+		}
+
+		syslog(LOG_NOTICE, "[EQUIP_LIST_PARTITION_DATA] PN:%d ARM:%d TEXT:\"%s\"",
+			frame_bytes[1],
+			frame_bytes[3],
+            ge_text_to_ascii_one_line(partition->encoded_touchpad_text, partition->encoded_touchpad_text_len)
+		);
+    }
+
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
+concordd_handle_equip_list_superbus_dev_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+    // TODO: Writeme
+    syslog(LOG_NOTICE, "[EQUIP_LIST_SUPERBUS_DEV_DATA]");
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
+concordd_handle_equip_list_superbus_cap_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+    // TODO: Writeme
+    syslog(LOG_NOTICE, "[EQUIP_LIST_SUPERBUS_CAP_DATA]");
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
+concordd_handle_equip_list_output_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+	int outputi = frame_bytes[2];
+	concordd_output_t output = concordd_get_output(self, outputi);
+
+	if (output != NULL) {
+		output->active = true;
+		output->output_state = frame_bytes[3];
+		memcpy(output->id_bytes, frame_bytes+4, 5);
+
+		output->encoded_name_len = frame_len-9;
+		memcpy(output->encoded_name, frame_bytes+9, frame_len-9);
+
+		syslog(LOG_NOTICE, "[EQUIP_LIST_OUTPUT_DATA] OUT:0x%02X STATE:%d ID:%02X%02X%02X%02X%02X NAME:\"%s\"",
+			outputi,
+			output->output_state,
+			output->id_bytes[0],
+			output->id_bytes[1],
+			output->id_bytes[2],
+			output->id_bytes[3],
+			output->id_bytes[4],
+            ge_text_to_ascii_one_line(output->encoded_name, output->encoded_name_len)
+		);
+	}
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
+concordd_handle_equip_list_schedule_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+    // TODO: Writeme
+    syslog(LOG_DEBUG, "[EQUIP_LIST_SCHEDULE_DATA]");
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
+concordd_handle_equip_list_scheduled_event_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+    // TODO: Writeme
+    syslog(LOG_DEBUG, "[EQUIP_LIST_SCHEDULED_EVENT_DATA]");
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
+concordd_handle_equip_list_light_to_sensor_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
+{
+	int partitioni = frame_bytes[1];
+	concordd_partition_t partition = concordd_get_partition(self, partitioni);
+
+	if (partition != NULL) {
+		int i = 0;
+		partition->active = true;
+
+		for (i=1;i<10;i++) {
+			concordd_light_t light = concordd_partition_get_light(partition, i);
+			if (light == NULL) {
+				continue;
+			}
+			light->zone_id = frame_bytes[2+i];
+			if (light->zone_id) {
+				syslog(LOG_NOTICE, "[EQUIP_LIST_LIGHT_TO_SENSOR_DATA] PN:%d LIGHT:%d ZONE:%d",
+					frame_bytes[2],
+					i,
+					light->zone_id
+				);
+			}
+		}
+    }
+
+    return GE_RS232_STATUS_OK;
+}
+
+static ge_rs232_status_t
 concordd_handle_equip_list_zone_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
 	uint16_t zonei = (frame_bytes[4]<<8)+frame_bytes[5];
@@ -803,20 +926,37 @@ concordd_handle_frame(concordd_instance_t self, const uint8_t* frame_bytes, int 
 		return concordd_handle_subcmd2(self, frame_bytes, frame_len);
 	case GE_RS232_PTA_AUTOMATION_EVENT_LOST:
         syslog(LOG_WARNING, "[AUTOMATION_EVENT_LOST]");
-        return concordd_dynamic_data_refresh(self, NULL, NULL);
+//        return concordd_dynamic_data_refresh(self, NULL, NULL);
+		break;
 	case GE_RS232_PTA_CLEAR_AUTOMATION_DYNAMIC_IMAGE:
         syslog(LOG_NOTICE, "[CLEAR_AUTOMATION_DYNAMIC_IMAGE]");
         // TODO: Invalidate all alarm/trouble events (but not log)
-        return concordd_equipment_refresh(self, NULL, NULL);
+//        return concordd_equipment_refresh(self, NULL, NULL);
+		break;
     case GE_RS232_PTA_EQUIP_LIST_COMPLETE:
         syslog(LOG_NOTICE, "[EQUIP_LIST_COMPLETE]");
+		concordd_dynamic_data_refresh(self, NULL, NULL);
         break;
 	case GE_RS232_PTA_ZONE_STATUS:
 		return concordd_handle_zone_status(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_PARTITION_DATA:
+		return concordd_handle_equip_list_partition_data(self, frame_bytes, frame_len);
 	case GE_RS232_PTA_EQUIP_LIST_ZONE_DATA:
 		return concordd_handle_equip_list_zone_data(self, frame_bytes, frame_len);
 	case GE_RS232_PTA_EQUIP_LIST_USER_DATA:
 		return concordd_handle_equip_list_user_data(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_SUPERBUS_DEV_DATA:
+		return concordd_handle_equip_list_superbus_dev_data(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_SUPERBUS_CAP_DATA:
+		return concordd_handle_equip_list_superbus_cap_data(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_OUTPUT_DATA:
+		return concordd_handle_equip_list_output_data(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_SCHEDULE_DATA:
+		return concordd_handle_equip_list_schedule_data(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_SCHEDULED_EVENT_DATA:
+		return concordd_handle_equip_list_scheduled_event_data(self, frame_bytes, frame_len);
+	case GE_RS232_PTA_EQUIP_LIST_LIGHT_TO_SENSOR_DATA:
+		return concordd_handle_equip_list_light_to_sensor_data(self, frame_bytes, frame_len);
 	case GE_RS232_PTA_PANEL_TYPE:
 		return concordd_handle_panel_type(self, frame_bytes, frame_len);
 		break;

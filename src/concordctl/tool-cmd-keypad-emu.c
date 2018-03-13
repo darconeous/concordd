@@ -76,8 +76,10 @@ static void enter_raw_termios() {
 	raw.c_lflag &= ~(ECHO|ICANON);
 	tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 	if (gUseAnsi) {
+		fprintf(stdout, ANSI_EL1 "\r");
+		fprintf(stdout, ANSI_ED0);
 		fprintf(stdout, ANSI_HIDE_CURSOR);
-		fprintf(stdout, ANSI_SCP);
+		//fprintf(stdout, ANSI_SCP);
 		fflush(stdout);
 	}
 }
@@ -110,7 +112,7 @@ touchpad_display_draw()
 {
 	if (gUseAnsi) {
 		fprintf(stdout, ANSI_EL1 "\r");
-		fprintf(stdout, ANSI_RCP ANSI_ED0);
+		//fprintf(stdout, ANSI_RCP ANSI_ED0);
 		fprintf(stdout, ANSI_SGR_RESET);
 		switch (touchpad_armlevel) {
 		default:

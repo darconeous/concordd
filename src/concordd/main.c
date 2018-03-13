@@ -911,12 +911,12 @@ main(int argc, char * argv[])
         goto bail;
     }
 
-    concordd_refresh(&concordd_state.instance, NULL, NULL);
-
     if (concordd_dbus_server_init(&concordd_state.dbus_server, &concordd_state.instance)==NULL) {
         syslog(LOG_ERR, "Failed to start DBus server");
         goto bail;
     }
+
+	concordd_refresh(&concordd_state.instance, NULL, NULL);
 
     concordd_state.instance.event_func = &concordd_event_func;
     concordd_state.instance.light_info_changed_func = &concordd_light_info_changed_func;

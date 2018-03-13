@@ -69,6 +69,7 @@
 #define CONCORDD_DBUS_EXCEPTION_EXTRA_DATA     "extraData"
 #define CONCORDD_DBUS_EXCEPTION_TIMESTAMP     "timestamp"
 #define CONCORDD_DBUS_EXCEPTION_DESCRIPTION     "description"
+#define CONCORDD_DBUS_EXCEPTION_CATEGORY     "category"
 
 #define CONCORDD_DBUS_CLASS_NAME_PANEL     "panel"
 #define CONCORDD_DBUS_CLASS_NAME_PARTITION     "partition"

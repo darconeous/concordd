@@ -141,6 +141,8 @@ struct concordd_output_s {
 	uint32_t last_changed_by;
 	time_t last_changed_at;
 
+	uint8_t id_bytes[5];
+
 	uint8_t encoded_name[16];
 	uint8_t encoded_name_len;
 };
