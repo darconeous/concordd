@@ -66,16 +66,19 @@
         "Prints out info for one or more zones", \
         &tool_cmd_zone \
     }, \
+    { "zones", "", &tool_cmd_zone, 1 }, \
     { \
         "light", \
         "Prints out info for one or more lights", \
         &tool_cmd_light \
     }, \
+    { "lights", "", &tool_cmd_light, 1 }, \
     { \
         "output", \
         "Prints out info for one or more outputs", \
         &tool_cmd_output \
     }, \
+    { "outputs", "", &tool_cmd_output, 1 }, \
     { \
         "log", \
         "Prints out changes to the system as they occur", \

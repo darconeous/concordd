@@ -411,7 +411,66 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
 	// Pass-thru to D-Bus first.
 	concordd_dbus_zone_info_changed_func(&concordd_state->dbus_server, instance, zone, changed);
 
-	// TODO: Now handle via system
+    if (gZoneChangedCommand == NULL) {
+        return;
+    }
+
+    if (0 == (changed & CONCORDD_ZONE_TRIPPED_CHANGED|CONCORDD_ZONE_ALARM_CHANGED|CONCORDD_ZONE_TROUBLE_CHANGED|CONCORDD_ZONE_FAULT_CHANGED)) {
+        // We only care about when the zone state has changed.
+        return;
+    }
+
+    // Now handle via system.
+    int pid = fork();
+    if (pid == -1) {
+        syslog(LOG_ERR, "concordd_zone_info_changed_func: fork() failed: %s", strerror(errno));
+
+    } else if (pid == 0) {
+        char value[64];
+
+        setenv("CONCORDD_TYPE", "ZONE", 1);
+
+        snprintf(value, sizeof(value), "%d", zone->partition_id);
+        setenv("CONCORDD_PARTITION_ID", value, 1);
+
+        snprintf(value, sizeof(value), "%d", concordd_get_zone_index(instance, zone));
+        setenv("CONCORDD_ZONE_ID", value, 1);
+
+		setenv("CONCORDD_ZONE_NAME", ge_text_to_ascii_one_line(zone->encoded_name, zone->encoded_name_len), 1);
+
+		snprintf(value, sizeof(value), "%d", zone->type);
+        setenv("CONCORDD_ZONE_TYPE", value, 1);
+
+		snprintf(value, sizeof(value), "%d", zone->group);
+        setenv("CONCORDD_ZONE_GROUP", value, 1);
+
+
+		if ((zone->zone_state&GE_RS232_ZONE_STATUS_TRIPPED) == GE_RS232_ZONE_STATUS_TRIPPED) {
+	        setenv("CONCORDD_ZONE_TRIPPED", "1", 1);
+		}
+
+		if ((zone->zone_state&GE_RS232_ZONE_STATUS_ALARM) == GE_RS232_ZONE_STATUS_ALARM) {
+	        setenv("CONCORDD_ZONE_ALARM", "1", 1);
+		}
+
+		if ((zone->zone_state&GE_RS232_ZONE_STATUS_FAULT) == GE_RS232_ZONE_STATUS_FAULT) {
+	        setenv("CONCORDD_ZONE_FAULT", "1", 1);
+		}
+
+		if ((zone->zone_state&GE_RS232_ZONE_STATUS_TROUBLE) == GE_RS232_ZONE_STATUS_TROUBLE) {
+	        setenv("CONCORDD_ZONE_TROUBLE", "1", 1);
+		}
+
+		if ((zone->zone_state&GE_RS232_ZONE_STATUS_BYPASSED) == GE_RS232_ZONE_STATUS_BYPASSED) {
+	        setenv("CONCORDD_ZONE_BYPASSED", "1", 1);
+		}
+
+        _exit(system(gZoneChangedCommand));
+    } else {
+        // Parent
+        int stat = 0;
+        pid_t ret = waitpid(pid, &stat, 0);
+    }
 }
 
 void
@@ -911,12 +970,12 @@ main(int argc, char * argv[])
         goto bail;
     }
 
-    concordd_refresh(&concordd_state.instance, NULL, NULL);
-
     if (concordd_dbus_server_init(&concordd_state.dbus_server, &concordd_state.instance)==NULL) {
         syslog(LOG_ERR, "Failed to start DBus server");
         goto bail;
     }
+
+	concordd_refresh(&concordd_state.instance, NULL, NULL);
 
     concordd_state.instance.event_func = &concordd_event_func;
     concordd_state.instance.light_info_changed_func = &concordd_light_info_changed_func;

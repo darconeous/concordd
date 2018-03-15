@@ -482,7 +482,7 @@ const char *ge_rs232_text_token_lookup[256] = {
 	"SIREN ",
 	"SLIDING ",
 	"SMOKE ",
-	"Sn ",
+	"Sn ", // ???
 	"SOUND ",
 	"SOUTH ",
 	"SPECIAL ",
@@ -518,24 +518,51 @@ const char *ge_rs232_text_token_lookup[256] = {
 	[0xFA]=" ",		// "pseudo space", whatever the hell that means.
 	[0xFB]="\n",	// Another Carriage Return?
 	[0xFD]="\b",	// Backspace...?
-	[0xFE]="[!]",	// Indicates that the next token should blink.
+	[0xFE]="",		// Indicates that the next token should blink.
 };
+
+#define GE_TEXT_BLINK_TOKEN		0xFE
 
 const char*
 ge_text_to_ascii_one_line(const uint8_t * bytes, uint8_t len) {
 	static char ret[1024];
+	bool blink_next_token = false;
 	ret[0] = 0;
 	// TODO: Optimize!
 	while(len--) {
-		const char* str = ge_rs232_text_token_lookup[*bytes++];
-		if(str) {
-			if(str[0]=='\n') {
-				if(len)
-					strlcat(ret,isspace(ret[strlen(ret)-1])?"| ":" | ",sizeof(ret));
-			} else if(str[0]=='\b') {
-				// Backspace
-				if(ret[0])
+		uint8_t code = *bytes++;
+		if (code == GE_TEXT_BLINK_TOKEN) {
+			if (blink_next_token == false) {
+				strlcat(ret,"<",sizeof(ret));
+			}
+			blink_next_token = true;
+			if (len--) {
+				code = *bytes++;
+			} else {
+				continue;
+			}
+		} else {
+			if (blink_next_token == true) {
+				if (isspace(ret[strlen(ret)-1])) {
 					ret[strlen(ret)-1] = 0;
+					strlcat(ret,"> ",sizeof(ret));
+				} else {
+					strlcat(ret,">",sizeof(ret));
+				}
+			}
+			blink_next_token = false;
+		}
+		const char* str = ge_rs232_text_token_lookup[code];
+		if (str) {
+			if (str[0]=='\n') {
+				if (len) {
+					strlcat(ret,isspace(ret[strlen(ret)-1])?"| ":" | ",sizeof(ret));
+				}
+			} else if (str[0]=='\b') {
+				// Backspace
+				if (ret[0]) {
+					ret[strlen(ret)-1] = 0;
+				}
 			} else {
 				strlcat(ret,str,sizeof(ret));
 			}
@@ -543,9 +570,18 @@ ge_text_to_ascii_one_line(const uint8_t * bytes, uint8_t len) {
 			strlcat(ret,"?",sizeof(ret));
 		}
 	}
+	if (blink_next_token == true) {
+		if (isspace(ret[strlen(ret)-1])) {
+			ret[strlen(ret)-1] = 0;
+			strlcat(ret,"> ",sizeof(ret));
+		} else {
+			strlcat(ret,">",sizeof(ret));
+		}
+	}
 	// Remove trailing whitespace.
-	for(len=strlen(ret);len && isspace(ret[len-1]);len--)
+	for(len=strlen(ret);len && isspace(ret[len-1]);len--) {
 		ret[len-1] = 0;
+	}
 	return ret;
 }
 
@@ -553,9 +589,32 @@ const char*
 ge_text_to_ascii(const uint8_t * bytes, uint8_t len) {
 	static char ret[1024];
 	ret[0] = 0;
+	bool blink_next_token = false;
 	// TODO: Optimize!
 	while(len--) {
-		const char* str = ge_rs232_text_token_lookup[*bytes++];
+		uint8_t code = *bytes++;
+		if (code == GE_TEXT_BLINK_TOKEN) {
+			if (blink_next_token == false) {
+				strlcat(ret,"<",sizeof(ret));
+			}
+			blink_next_token = true;
+			if (len--) {
+				code = *bytes++;
+			} else {
+				continue;
+			}
+		} else {
+			if (blink_next_token == true) {
+				if (isspace(ret[strlen(ret)-1])) {
+					ret[strlen(ret)-1] = 0;
+					strlcat(ret,"> ",sizeof(ret));
+				} else {
+					strlcat(ret,">",sizeof(ret));
+				}
+			}
+			blink_next_token = false;
+		}
+		const char* str = ge_rs232_text_token_lookup[code];
 		if(str) {
 			if(str[0]=='\b') {
 				// Backspace
@@ -568,9 +627,18 @@ ge_text_to_ascii(const uint8_t * bytes, uint8_t len) {
 			strlcat(ret,"?",sizeof(ret));
 		}
 	}
+	if (blink_next_token == true) {
+		if (isspace(ret[strlen(ret)-1])) {
+			ret[strlen(ret)-1] = 0;
+			strlcat(ret,"> ",sizeof(ret));
+		} else {
+			strlcat(ret,">",sizeof(ret));
+		}
+	}
 	// Remove trailing whitespace.
-	for(len=strlen(ret);len && isspace(ret[len-1]);len--)
+	for(len=strlen(ret);len && isspace(ret[len-1]);len--) {
 		ret[len-1] = 0;
+	}
 	return ret;
 }
 
@@ -814,19 +882,30 @@ ge_specific_system_trouble_to_cstr(char* dest, int code)
     }
 
     switch (code) {
-    case GE_RS232_ALARM_SPECIFIC_UNSPECIFIED:
-        snprintf(dest, sizeof(static_string), "UNSPECIFIED");
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_MAIN_AC_FAIL:
+        snprintf(dest, sizeof(static_string), "MAIN AC FAIL");
         break;
-/*
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_RECEIVER_FAIL            (0)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_MAIN_BATTERY_LOW            (2)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_MAIN_AC_FAIL            (5)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_SHUTDOWN            (9)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_LOW_POWER_MODE            (10)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_PHONE_LINE_1_FAIL            (11)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_WATCHDOG_RESET            (14)
-#define GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_DEVICE_FAIL            (21)
-*/
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_MAIN_BATTERY_LOW:
+        snprintf(dest, sizeof(static_string), "MAIN BATTERY LOW");
+        break;
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_SHUTDOWN:
+        snprintf(dest, sizeof(static_string), "BUS SHUTDOWN");
+        break;
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_LOW_POWER_MODE:
+        snprintf(dest, sizeof(static_string), "BUS LOW POWER MODE");
+        break;
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_PHONE_LINE_1_FAIL:
+        snprintf(dest, sizeof(static_string), "PHONE LINE 1 FAIL");
+        break;
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_WATCHDOG_RESET:
+        snprintf(dest, sizeof(static_string), "WATCHDOG RESET");
+        break;
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_DEVICE_FAIL:
+        snprintf(dest, sizeof(static_string), "BUS DEVICE FAIL");
+        break;
+    case GE_RS232_SYSTEM_TROUBLE_SPECIFIC_BUS_RECEIVER_FAIL:
+        snprintf(dest, sizeof(static_string), "BUS RECEIVER FAIL");
+        break;
 
     default:
         snprintf(dest, sizeof(static_string), "%d", code);

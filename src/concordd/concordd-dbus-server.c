@@ -994,12 +994,72 @@ append_dict_event(DBusMessageIter *dict, concordd_event_t event)
     const char* cstr = NULL;
     int i = -1;
     dbus_bool_t b = false;
+	const char* category = "UNKNOWN";
+	const char* specific_desc = "";
 
-    i = event->status;
+	switch(event->general_type) {
+	case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_TROUBLE:
+	case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_TROUBLE_RESTORAL:
+		category = "SYSTEM-TROUBLE";
+		specific_desc = ge_specific_system_trouble_to_cstr(NULL, event->specific_type);
+		break;
+
+	case GE_RS232_ALARM_GENERAL_TYPE_ALARM:
+	case GE_RS232_ALARM_GENERAL_TYPE_ALARM_RESTORAL:
+	case GE_RS232_ALARM_GENERAL_TYPE_ALARM_CANCEL:
+		category = "PARTITION-ALARM";
+		specific_desc = ge_specific_alarm_to_cstr(NULL, event->specific_type);
+		break;
+
+	case GE_RS232_ALARM_GENERAL_TYPE_FIRE_TROUBLE:
+	case GE_RS232_ALARM_GENERAL_TYPE_NONFIRE_TROUBLE:
+	case GE_RS232_ALARM_GENERAL_TYPE_FIRE_TROUBLE_RESTORAL:
+	case GE_RS232_ALARM_GENERAL_TYPE_NONFIRE_TROUBLE_RESTORAL:
+		category = "PARTITION-TROUBLE";
+		specific_desc = ge_specific_trouble_to_cstr(NULL, event->specific_type);
+		break;
+
+	case GE_RS232_ALARM_GENERAL_TYPE_PARTITION_EVENT:
+		category = "PARTITION-EVENT";
+		specific_desc = ge_specific_partition_to_cstr(NULL, event->specific_type);
+		break;
+
+	case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_EVENT:
+		category = "SYSTEM-EVENT";
+		break;
+	}
+
+	switch (event->status) {
+	case CONCORDD_EVENT_STATUS_ONGOING:
+		cstr = "ONGOING";
+		break;
+	case CONCORDD_EVENT_STATUS_CANCELED:
+		cstr = "CANCELED";
+		break;
+	case CONCORDD_EVENT_STATUS_RESTORED:
+		cstr = "RESTORED";
+		break;
+	default:
+	case CONCORDD_EVENT_STATUS_UNSPECIFIED:
+		cstr = "TRIGGERED";
+		break;
+	}
     append_dict_entry(dict,
                       CONCORDD_DBUS_EXCEPTION_STATUS,
-                      DBUS_TYPE_INT32,
-                      &i);
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+    cstr = category;
+	append_dict_entry(dict,
+                      CONCORDD_DBUS_EXCEPTION_CATEGORY,
+                      DBUS_TYPE_STRING,
+                      &cstr);
+
+    cstr = specific_desc;
+	append_dict_entry(dict,
+                      CONCORDD_DBUS_EXCEPTION_DESCRIPTION,
+                      DBUS_TYPE_STRING,
+                      &cstr);
 
     i = event->general_type;
     append_dict_entry(dict,
@@ -1078,6 +1138,12 @@ concordd_dbus_event_func(concordd_dbus_server_t self, concordd_instance_t instan
         snprintf(path, sizeof(path), "%s%d", CONCORDD_DBUS_PATH_PARTITION, event->partition_id);
         name = CONCORDD_DBUS_SIGNAL_TROUBLE;
         break;
+
+	case GE_RS232_ALARM_GENERAL_TYPE_PARTITION_CONFIG_CHANGE:
+	case GE_RS232_ALARM_GENERAL_TYPE_PARTITION_EVENT:
+	case GE_RS232_ALARM_GENERAL_TYPE_PARTITION_TEST:
+        snprintf(path, sizeof(path), "%s%d", CONCORDD_DBUS_PATH_PARTITION, event->partition_id);
+		break;
 
     default:
     case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_EVENT:
@@ -1444,11 +1510,178 @@ bail:
 void
 concordd_dbus_light_info_changed_func(concordd_dbus_server_t self,  concordd_instance_t instance, concordd_partition_t partition, concordd_light_t light, int changed)
 {
+    char path[120] = {0};
+    const char* name = CONCORDD_DBUS_SIGNAL_CHANGED;
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    DBusMessage *message = NULL;
+	int partition_id = concordd_get_partition_index(instance, partition);
+	int light_id = concordd_get_light_index(instance, partition, light);
+
+	if (changed == 0) {
+		goto bail;
+	}
+
+	snprintf(path, sizeof(path), "%s%d%s%d", CONCORDD_DBUS_PATH_PARTITION, partition_id, "/light/", light_id);
+
+    message = dbus_message_new_signal(
+        path,
+        CONCORDD_DBUS_INTERFACE,
+        name
+    );
+
+    dbus_message_iter_init_append(message, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+	if (changed & CONCORDD_LIGHT_LIGHT_STATE_CHANGED) {
+		b = light->light_state;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_VALUE,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_LIGHT_ZONE_ID_CHANGED) {
+		i = light->zone_id;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_ZONE_ID,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_LIGHT_LAST_CHANGED_AT_CHANGED) {
+		i = (int32_t)light->last_changed_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_CHANGED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_LIGHT_LAST_CHANGED_BY_CHANGED) {
+		i = (int32_t)light->last_changed_by;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_CHANGED_BY,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, message, NULL);
+
+bail:
+    if (message != NULL) {
+        dbus_message_unref(message);
+    }
 }
 
 void
 concordd_dbus_output_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_output_t output, int changed)
 {
+    char path[120] = {0};
+    const char* name = CONCORDD_DBUS_SIGNAL_CHANGED;
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    DBusMessage *message = NULL;
+	int output_id = concordd_get_output_index(instance, output);
+
+	if (changed == 0) {
+		goto bail;
+	}
+
+	snprintf(path, sizeof(path), "%s%d", CONCORDD_DBUS_PATH_OUTPUT, output_id);
+
+    message = dbus_message_new_signal(
+        path,
+        CONCORDD_DBUS_INTERFACE,
+        name
+    );
+
+    dbus_message_iter_init_append(message, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+	if (changed & CONCORDD_OUTPUT_OUTPUT_STATE_CHANGED) {
+		b = output->output_state;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_VALUE,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_OUTPUT_LAST_CHANGED_AT_CHANGED) {
+		i = (int32_t)output->last_changed_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_CHANGED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_OUTPUT_LAST_CHANGED_BY_CHANGED) {
+		i = (int32_t)output->last_changed_by;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_CHANGED_BY,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+
+	if (changed & CONCORDD_OUTPUT_ENCODED_NAME_CHANGED) {
+		cstr = ge_text_to_ascii_one_line(
+			output->encoded_name,
+			output->encoded_name_len
+		);
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_NAME,
+						  DBUS_TYPE_STRING,
+						  &cstr);
+	}
+
+	if (changed & CONCORDD_OUTPUT_PARTITION_ID_CHANGED) {
+		i = output->partition_id;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_PARTITION_ID,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, message, NULL);
+
+bail:
+    if (message != NULL) {
+        dbus_message_unref(message);
+    }
 }
 
 static DBusHandlerResult
@@ -1458,7 +1691,7 @@ dbus_message_handler(
     void *                  user_data
     )
 {
-    syslog(LOG_NOTICE, "Got DBus Message");
+    //syslog(LOG_NOTICE, "Got DBus Message");
 
     concordd_dbus_server_t self = (concordd_dbus_server_t)user_data;
     const char* path = dbus_message_get_path(message);
