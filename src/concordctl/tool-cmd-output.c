@@ -301,12 +301,10 @@ tool_cmd_output(int argc, char *argv[])
 		} else {
 			ret = 0;
 			int outputId;
-			for (outputId = 0; outputId < 10; outputId++) {
-				status = get_output_info(connection, timeout, outputId, &message, &iter, &error);
+			for (outputId = 0; outputId < 71; outputId++) {
+				status = get_output_info(connection, timeout, outputId, &message, &iter, NULL);
 				if (status != 0) {
-					ret = -1;
-					fprintf(stderr, "%s: output-%d error: %s\n", argv[0], outputId, error.message);
-					break;
+					continue;
 				}
 				status = dump_output_info(stdout, &iter, style);
 				if (message) {

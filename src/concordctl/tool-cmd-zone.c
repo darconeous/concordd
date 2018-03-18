@@ -57,6 +57,7 @@ dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 	int partId = -1;
 	int type = -1;
 	int group = -1;
+	int32_t time_since_changed = 0;
 	dbus_bool_t isTripped = false;
 	dbus_bool_t isBypassed = false;
 	dbus_bool_t isTrouble = false;
@@ -71,6 +72,7 @@ dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 		fprintf(file, "|Typ");
 		fprintf(file, "| Grp");
 		fprintf(file, "|Trp|Byp|Tro|Alr|Flt");
+		fprintf(file, "|Last Changed");
 		fprintf(file, "\n");
 		fprintf(file, "-%30.30s-", "--------------------------------------------------");
 		fprintf(file, "+----");
@@ -78,6 +80,7 @@ dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 		fprintf(file, "+---");
 		fprintf(file, "+----");
 		fprintf(file, "+---+---+---+---+---");
+		fprintf(file, "|------------");
 		fprintf(file, "\n");
 	}
 
@@ -143,6 +146,15 @@ dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 		} else if (0 == strcmp(key, CONCORDD_DBUS_INFO_IS_FAULT)) {
 			require(dbus_message_iter_get_arg_type(&val_iter) == DBUS_TYPE_BOOLEAN, bail);
 			dbus_message_iter_get_basic(&val_iter, &isFault);
+		} else if (0 == strcmp(key, CONCORDD_DBUS_INFO_LAST_CHANGED_AT)) {
+			int32_t last_changed = 0;
+			if (dbus_message_iter_get_arg_type(&val_iter) != DBUS_TYPE_INT32) {
+				continue;
+			}
+			dbus_message_iter_get_basic(&val_iter, &last_changed);
+			if (last_changed != 0) {
+				time_since_changed = time(NULL)-last_changed;
+			}
 		}
 	}
 
@@ -158,6 +170,17 @@ dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 		isAlarm?'A':' ',
 		isFault?'F':' '
 	);
+	if (time_since_changed > (60*60*24)) {
+		fprintf(file, " | %.1fd ago", (double)time_since_changed/(60*60*24));
+	} else if (time_since_changed > (60*60)) {
+		fprintf(file, " | %.1fh ago", (double)time_since_changed/(60*60));
+	} else if (time_since_changed > (60)) {
+		fprintf(file, " | %.1fm ago", (double)time_since_changed/(60));
+	} else if (time_since_changed > 0) {
+		fprintf(file, " | %ds ago", time_since_changed);
+	} else {
+		fprintf(file, " | ");
+	}
 	fprintf(file, "\n");
 
 	ret = 0;
