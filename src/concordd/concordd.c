@@ -527,7 +527,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			partition->encoded_touchpad_text_len = frame_len-5;
 			memcpy(partition->encoded_touchpad_text, frame_bytes+5, frame_len-5);
 
-            syslog(LOG_INFO,
+            syslog(LOG_DEBUG,
                 "[TOUCHPAD] PN:%d \"%s\"",
                 partitioni,
                 ge_text_to_ascii_one_line(partition->encoded_touchpad_text,partition->encoded_touchpad_text_len)
@@ -640,7 +640,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 		break;
 
 	default:
-        syslog(LOG_DEBUG, "[UNHANDLED_SUBCMD_%02X]",frame_bytes[1]);
+        syslog(LOG_WARNING, "[UNHANDLED_SUBCMD_%02X]",frame_bytes[1]);
 		break;
 	}
 
@@ -661,12 +661,19 @@ concordd_handle_zone_status(concordd_instance_t self, const uint8_t* frame_bytes
 		zone->zone_state = state;
         zone->active = true;
 
+		if ( (state&GE_RS232_ZONE_STATUS_TRIPPED)
+		  && (changed_state&GE_RS232_ZONE_STATUS_TRIPPED)
+		) {
+			zone->last_tripped_at = time(NULL);
+		}
+
 		if (changed_state != 0) {
+			zone->last_changed_at = time(NULL);
 			concordd_zone_info_changed(self, zone, changed_state<<8);
 		}
 
         if (changed_state != 0) {
-            syslog(LOG_INFO,
+            syslog((changed_state & ~GE_RS232_ZONE_STATUS_TRIPPED) != 0?LOG_WARNING:LOG_INFO,
                 "[ZONE] PN:%d ZONE:%d \"%s\" STATUS:%s%s%s%s%s",
                 zone->partition_id,
                 zonei,
@@ -720,16 +727,67 @@ concordd_handle_equip_list_partition_data(concordd_instance_t self, const uint8_
 static ge_rs232_status_t
 concordd_handle_equip_list_superbus_dev_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
-    // TODO: Writeme
-    syslog(LOG_NOTICE, "[EQUIP_LIST_SUPERBUS_DEV_DATA]");
+	int partitioni = frame_bytes[1];
+	int deviceid = (frame_bytes[3]<<16)+(frame_bytes[4]<<8)+frame_bytes[5];
+	bool fault = (frame_bytes[6] != 0);
+	int unitid = frame_bytes[7];
+
+    syslog(
+		fault?LOG_ERR:LOG_NOTICE,
+		"[EQUIP_LIST_SUPERBUS_DEV_DATA] PN:%d DEVICEID:%d(0x%06X) FAULT:%d UNIT:%d",
+		partitioni,
+		deviceid,deviceid,
+		fault,
+		unitid);
+
+	// TODO: Writeme
+
     return GE_RS232_STATUS_OK;
 }
 
 static ge_rs232_status_t
 concordd_handle_equip_list_superbus_cap_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
-    // TODO: Writeme
-    syslog(LOG_NOTICE, "[EQUIP_LIST_SUPERBUS_CAP_DATA]");
+	int deviceid = (frame_bytes[1]<<16)+(frame_bytes[2]<<8)+frame_bytes[3];
+	int cap = frame_bytes[4];
+	int data = frame_bytes[5];
+	const char* cap_string = "UNKNOWN";
+
+	switch(cap) {
+	case 0x00: cap_string = "Power Supervision"; break;
+	case 0x01: cap_string = "Access Control"; break;
+	case 0x02: cap_string = "Analog Smoke"; break;
+	case 0x03: cap_string = "Audio Listen-In"; break;
+	case 0x04: cap_string = "SnapCard Supervision"; break;
+	case 0x05: cap_string = "Microburst"; break;
+	case 0x06: cap_string = "Dual Phone Line"; break;
+	case 0x07: cap_string = "Energy Management"; break;
+	case 0x08: cap_string = "Input Zones"; break;
+	case 0x09: cap_string = "Automation"; break;
+	case 0x0a: cap_string = "Phone Interface"; break;
+	case 0x0b: cap_string = "Relay Outputs"; break;
+	case 0x0c: cap_string = "RF Receiver"; break;
+	case 0x0d: cap_string = "RF Transmitter"; break;
+	case 0x0e: cap_string = "Parallel Printer"; break;
+	case 0x10: cap_string = "LED Touchpad"; break;
+	case 0x11: cap_string = "LCD Text Touchpad"; break;
+	case 0x12: cap_string = "GUI Touchpad"; break;
+	case 0x13: cap_string = "Voice Evacuation"; break;
+	case 0x14: cap_string = "Pager"; break;
+	case 0x15: cap_string = "Downloadable code/data"; break;
+	case 0x16: cap_string = "JTECH Premise Pager"; break;
+	case 0x17: cap_string = "Cryptography"; break;
+	case 0x18: cap_string = "LED Display"; break;
+	default: break;
+	}
+
+    syslog(
+		LOG_NOTICE,
+		"[EQUIP_LIST_SUPERBUS_CAP_DATA] DEVICEID:%d(0x%06X) CN:0x%02X(%s) CD:%d",
+		deviceid,deviceid,
+		cap,
+		cap_string,
+		data);
     return GE_RS232_STATUS_OK;
 }
 
@@ -737,19 +795,26 @@ static ge_rs232_status_t
 concordd_handle_equip_list_output_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
 	int outputi = frame_bytes[2];
+
+	// For some reason concord panels have this bit set on the output
+	outputi &= ~0x40;
+
 	concordd_output_t output = concordd_get_output(self, outputi);
 
 	if (output != NULL) {
-		output->active = true;
-		output->output_state = frame_bytes[3];
+		output->active       = true;
+		output->output_state =   (frame_bytes[3] & 1);
+		output->pulse        = !!(frame_bytes[3] & 2);
 		memcpy(output->id_bytes, frame_bytes+4, 5);
 
 		output->encoded_name_len = frame_len-9;
 		memcpy(output->encoded_name, frame_bytes+9, frame_len-9);
 
-		syslog(LOG_NOTICE, "[EQUIP_LIST_OUTPUT_DATA] OUT:0x%02X STATE:%d ID:%02X%02X%02X%02X%02X NAME:\"%s\"",
+		syslog(LOG_NOTICE, "[EQUIP_LIST_OUTPUT_DATA] OUT:%d(0x%02X) STATE:%d PULSE:%d ID:%02X%02X%02X%02X%02X NAME:\"%s\"",
+			outputi,
 			outputi,
 			output->output_state,
+			output->pulse,
 			output->id_bytes[0],
 			output->id_bytes[1],
 			output->id_bytes[2],

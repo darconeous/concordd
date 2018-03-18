@@ -70,7 +70,7 @@ struct concordd_light_s {
 
 #define CONCORDD_ZONE_PARTITION_ID_CHANGED		CONCORDD_GENERAL_PARTITION_ID_CHANGED
 #define CONCORDD_ZONE_ENCODED_NAME_CHANGED		CONCORDD_GENERAL_ENCODED_NAME_CHANGED
-#define CONCORDD_ZONE_LAST_TRIPPED_AT_CHANGED	CONCORDD_GENERAL_LAST_CHANGED_AT_CHANGED
+#define CONCORDD_ZONE_LAST_CHANGED_AT_CHANGED	CONCORDD_GENERAL_LAST_CHANGED_AT_CHANGED
 #define CONCORDD_ZONE_ZONE_STATE_CHANGED		CONCORDD_GENERAL_STATE_CHANGED
 #define CONCORDD_ZONE_TRIPPED_CHANGED			(GE_RS232_ZONE_STATUS_TRIPPED<<8)
 #define CONCORDD_ZONE_FAULT_CHANGED				(GE_RS232_ZONE_STATUS_FAULT<<8)
@@ -79,6 +79,7 @@ struct concordd_light_s {
 #define CONCORDD_ZONE_BYPASSED_CHANGED			(GE_RS232_ZONE_STATUS_BYPASSED<<8)
 #define CONCORDD_ZONE_TYPE_CHANGED				(1<<16)
 #define CONCORDD_ZONE_GROUP_CHANGED				(1<<17)
+#define CONCORDD_ZONE_LAST_TRIPPED_AT_CHANGED	(1<<18)
 struct concordd_zone_s {
 	bool active;
 	uint8_t partition_id;
@@ -88,6 +89,7 @@ struct concordd_zone_s {
 	uint8_t zone_state;
 
 	time_t last_tripped_at;
+	time_t last_changed_at;
 
 	uint8_t encoded_name[16];
 	uint8_t encoded_name_len;
@@ -137,6 +139,7 @@ struct concordd_output_s {
 	bool active;
 	uint8_t partition_id;
 	uint8_t output_state;
+	bool pulse;
 
 	uint32_t last_changed_by;
 	time_t last_changed_at;
@@ -210,7 +213,7 @@ struct concordd_instance_s {
 	struct concordd_partition_s partition[8];
 	struct concordd_zone_s zone[96];
 	struct concordd_device_s bus_device[32];
-	struct concordd_output_s output[70];
+	struct concordd_output_s output[71];
 	struct concordd_user_s user[252];
 
 	uint8_t panel_type;

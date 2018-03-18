@@ -12,6 +12,11 @@ Makefile.in
 /src/util/Makefile
 /src/concordctl/Makefile
 /src/concordd/Makefile
+/src/common/Makefile
+/src/concordd/version.c
+/src/missing/Makefile
+/src/missing/strlcat/Makefile
+/src/missing/strlcpy/Makefile
 /third_party/Makefile
 *.gcda
 *.gcno
@@ -42,10 +47,10 @@ src/stamp-h1
 src/config.h.in
 doxygen.cfg
 *.gz
-src/concordd/concordd
-src/concordctl/concordctl
+/src/concordd/concordd
+/src/concordctl/concordctl
 .dirstamp
-src/concordctl/version.c
+/src/concordctl/version.c
 concordd.xcodeproj/project.xcworkspace/xcshareddata/concordd.xccheckout
 .cproject
 .project

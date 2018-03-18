@@ -942,6 +942,22 @@ concordd_dbus_handle_zone_get_info(
                       DBUS_TYPE_INT32,
                       &i);
 
+	if (zone->last_changed_at != 0) {
+		i = zone->last_changed_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_CHANGED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (zone->last_tripped_at != 0) {
+		i = zone->last_tripped_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_TRIPPED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
     i = zone->group;
     append_dict_entry(&dict,
                       CONCORDD_DBUS_INFO_GROUP,
