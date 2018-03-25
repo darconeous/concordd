@@ -28,17 +28,26 @@
 #include "tool-cmd-light.h"
 #include "tool-cmd-output.h"
 #include "tool-cmd-keypad.h"
+#include "tool-cmd-system.h"
 #include "tool-cmd-partition-info.h"
 
 #include "concordctl-utils.h"
 
 #define CONCORDCTL_CLI_COMMANDS \
     { \
-        "partition-info", \
+        "partition", \
         "Get info about partition", \
         &tool_cmd_partition_info \
     }, \
     { "status", "", &tool_cmd_partition_info, 1 }, \
+    { "part", "", &tool_cmd_partition_info, 1 }, \
+    { "partition-info", "", &tool_cmd_partition_info, 1 }, \
+    { \
+        "system", \
+        "Get info about the system", \
+        &tool_cmd_system \
+    }, \
+    { "sys", "", &tool_cmd_system, 1 }, \
 	{ \
 		"arm", \
 		"Read or change the partition arm level", \

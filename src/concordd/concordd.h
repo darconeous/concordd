@@ -50,6 +50,17 @@ typedef struct concordd_light_s *concordd_light_t;
 struct concordd_event_s;
 typedef struct concordd_event_s *concordd_event_t;
 
+typedef uint32_t concordd_source_id_t;
+
+#define CONCORDD_SOURCE_ID_IS_BUS_DEVICE(x)			(((x)>>24) == 0)
+#define CONCORDD_SOURCE_ID_IS_LOCAL_PHONE(x)		(((x)>>24) == 1)
+#define CONCORDD_SOURCE_ID_IS_ZONE(x)				(((x)>>24) == 2)
+#define CONCORDD_SOURCE_ID_IS_SYSTEM(x)				(((x)>>24) == 3)
+#define CONCORDD_SOURCE_ID_IS_REMOTE_PHONE(x)		(((x)>>24) == 4)
+
+#define CONCORDD_SOURCE_ID_GET_ZONE(x)				(CONCORDD_SOURCE_ID_IS_ZONE(x)?(x)&0xFFFF:0)
+#define CONCORDD_SOURCE_ID_GET_BUS_DEVICE(x)		(CONCORDD_SOURCE_ID_IS_BUS_DEVICE(x)?(x)&0xFFFFFF:0)
+
 #define CONCORDD_GENERAL_PARTITION_ID_CHANGED		(1<<0)
 #define CONCORDD_GENERAL_ENCODED_NAME_CHANGED		(1<<1)
 #define CONCORDD_GENERAL_LAST_CHANGED_BY_CHANGED	(1<<2)
@@ -67,6 +78,25 @@ struct concordd_light_s {
 	uint32_t last_changed_by;
 	time_t last_changed_at;
 };
+
+#define CONCORDD_ZONE_PROPERTY_INTERIOR        (1<<0)
+#define CONCORDD_ZONE_PROPERTY_EXTERIOR        (1<<1)
+#define CONCORDD_ZONE_PROPERTY_POLICE          (1<<2)
+#define CONCORDD_ZONE_PROPERTY_AUXILIARY       (1<<3)
+#define CONCORDD_ZONE_PROPERTY_FIRE            (1<<4)
+#define CONCORDD_ZONE_PROPERTY_RESTORAL        (1<<5)
+#define CONCORDD_ZONE_PROPERTY_SUPERVISORY     (1<<6)
+#define CONCORDD_ZONE_PROPERTY_CS_REPORT       (1<<7)
+#define CONCORDD_ZONE_PROPERTY_CHIME           (1<<8)
+#define CONCORDD_ZONE_PROPERTY_DELAY           (1<<9)
+#define CONCORDD_ZONE_PROPERTY_LEVEL_1         (1<<10)
+#define CONCORDD_ZONE_PROPERTY_LEVEL_2         (1<<11)
+#define CONCORDD_ZONE_PROPERTY_LEVEL_3         (1<<12)
+#define CONCORDD_ZONE_PROPERTY_PANIC           (1<<13)
+#define CONCORDD_ZONE_PROPERTY_FOLLOWER        (1<<14)
+
+int concordd_zone_group_get_properties(int group);
+const char* concordd_zone_group_get_name(int group);
 
 #define CONCORDD_ZONE_PARTITION_ID_CHANGED		CONCORDD_GENERAL_PARTITION_ID_CHANGED
 #define CONCORDD_ZONE_ENCODED_NAME_CHANGED		CONCORDD_GENERAL_ENCODED_NAME_CHANGED
@@ -95,16 +125,13 @@ struct concordd_zone_s {
 	uint8_t encoded_name_len;
 };
 
-struct concordd_device_cap_s {
-	uint8_t cap;
-	uint8_t data;
-};
-
 struct concordd_device_s {
 	bool active;
 	uint32_t device_id;
 	uint8_t device_status;
-	concordd_device_cap_t cap[8];
+	uint32_t caps;
+	uint8_t input_count;
+	uint8_t output_count;
 };
 
 #define CONCORDD_EVENT_STATUS_UNSPECIFIED   0
@@ -205,6 +232,8 @@ struct concordd_partition_s {
 #define CONCORDD_INSTANCE_HW_REV_CHANGED			(1<<9)
 #define CONCORDD_INSTANCE_SW_REV_CHANGED			(1<<10)
 #define CONCORDD_INSTANCE_SERIAL_NUMBER_CHANGED		(1<<11)
+#define CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED	(1<<12)
+#define CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED	(1<<13)
 
 #define CONCORDD_MAX_PARTITIONS                 8
 #define CONCORDD_MAX_ZONES                 96
@@ -220,6 +249,11 @@ struct concordd_instance_s {
 	uint16_t hw_rev;
 	uint16_t sw_rev;
 	uint32_t serial_number;
+	uint8_t bus_device_count;
+	bool refresh_pending;
+	bool programming_mode;
+	bool ac_power_failure;
+	time_t ac_power_failure_changed_timestamp;
 
 	uint8_t siren_go_partition_id;
 

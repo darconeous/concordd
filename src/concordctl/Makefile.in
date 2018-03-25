@@ -133,6 +133,7 @@ am_concordctl_OBJECTS = concordctl-concordctl.$(OBJEXT) \
 	concordctl-tool-cmd-zone.$(OBJEXT) \
 	concordctl-tool-cmd-light.$(OBJEXT) \
 	concordctl-tool-cmd-output.$(OBJEXT) \
+	concordctl-tool-cmd-system.$(OBJEXT) \
 	concordctl-tool-cmd-partition-info.$(OBJEXT) \
 	concordctl-version.$(OBJEXT)
 concordctl_OBJECTS = $(am_concordctl_OBJECTS)
@@ -354,7 +355,8 @@ concordctl_SOURCES = concordctl.c concordctl-utils.c \
 	tool-cmd-arm.h tool-cmd-log.c tool-cmd-log.h tool-cmd-keypad.c \
 	tool-cmd-keypad.h tool-cmd-keypad-emu.c tool-cmd-zone.c \
 	tool-cmd-zone.h tool-cmd-light.c tool-cmd-light.h \
-	tool-cmd-output.c tool-cmd-output.h tool-cmd-partition-info.c \
+	tool-cmd-output.c tool-cmd-output.h tool-cmd-system.c \
+	tool-cmd-system.h tool-cmd-partition-info.c \
 	tool-cmd-partition-info.h $(NULL) \
 	$(top_builddir)/$(subdir)/version.c
 concordctl_LDADD = \
@@ -478,6 +480,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-output.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-partition-info.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-system.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-zone.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-version.Po@am__quote@
 
@@ -655,6 +658,20 @@ concordctl-tool-cmd-output.obj: tool-cmd-output.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-output.c' object='concordctl-tool-cmd-output.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-output.obj `if test -f 'tool-cmd-output.c'; then $(CYGPATH_W) 'tool-cmd-output.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-output.c'; fi`
+
+concordctl-tool-cmd-system.o: tool-cmd-system.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-system.o -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-system.Tpo -c -o concordctl-tool-cmd-system.o `test -f 'tool-cmd-system.c' || echo '$(srcdir)/'`tool-cmd-system.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/concordctl-tool-cmd-system.Tpo $(DEPDIR)/concordctl-tool-cmd-system.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-system.c' object='concordctl-tool-cmd-system.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-system.o `test -f 'tool-cmd-system.c' || echo '$(srcdir)/'`tool-cmd-system.c
+
+concordctl-tool-cmd-system.obj: tool-cmd-system.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-system.obj -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-system.Tpo -c -o concordctl-tool-cmd-system.obj `if test -f 'tool-cmd-system.c'; then $(CYGPATH_W) 'tool-cmd-system.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-system.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/concordctl-tool-cmd-system.Tpo $(DEPDIR)/concordctl-tool-cmd-system.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-system.c' object='concordctl-tool-cmd-system.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-system.obj `if test -f 'tool-cmd-system.c'; then $(CYGPATH_W) 'tool-cmd-system.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-system.c'; fi`
 
 concordctl-tool-cmd-partition-info.o: tool-cmd-partition-info.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-partition-info.o -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-partition-info.Tpo -c -o concordctl-tool-cmd-partition-info.o `test -f 'tool-cmd-partition-info.c' || echo '$(srcdir)/'`tool-cmd-partition-info.c

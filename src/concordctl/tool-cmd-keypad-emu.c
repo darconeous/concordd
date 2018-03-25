@@ -119,6 +119,7 @@ struct zone_data_s {
 	bool isAlarm;
 	bool isTrouble;
 	bool isBypassed;
+	time_t lastChangedAt;
 };
 
 static struct zone_data_s gZoneData[100];
@@ -141,6 +142,8 @@ update_zone(int zoneId, DBusMessageIter *iter)
 	require(dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_ARRAY, bail);
 
 	dbus_message_iter_recurse(iter, &sub_iter);
+
+	zone_data->lastChangedAt = time(NULL);
 
 	for (;
 		 dbus_message_iter_get_arg_type(&sub_iter) != DBUS_TYPE_INVALID;
@@ -168,6 +171,10 @@ update_zone(int zoneId, DBusMessageIter *iter)
 			require(dbus_message_iter_get_arg_type(&val_iter) == DBUS_TYPE_INT32, cont);
 			dbus_message_iter_get_basic(&val_iter, &i);
 			zone_data->partitionId = i;
+		} else if (0 == strcmp(key, CONCORDD_DBUS_INFO_LAST_CHANGED_AT)) {
+			require(dbus_message_iter_get_arg_type(&val_iter) == DBUS_TYPE_INT32, cont);
+			dbus_message_iter_get_basic(&val_iter, &i);
+			zone_data->lastChangedAt = i;
 		} else if (0 == strcmp(key, CONCORDD_DBUS_INFO_NAME)) {
 			require(dbus_message_iter_get_arg_type(&val_iter) == DBUS_TYPE_STRING, cont);
 			dbus_message_iter_get_basic(&val_iter, &cstr);
@@ -280,6 +287,7 @@ touchpad_display_draw()
 {
 	if (gUseAnsi) {
 		int i;
+		int lines = 1;
 		fprintf(stdout, ANSI_EL1 "\r");
 		fprintf(stdout, ANSI_CUP_ZERO ANSI_ED2);
 		fprintf(stdout, ANSI_SGR_RESET);
@@ -304,9 +312,18 @@ touchpad_display_draw()
 				fprintf(stdout, ANSI_SGR_BLINK);
 			} else if (c == '>') {
 				fprintf(stdout, ANSI_SGR_RESET);
+			} else if (c == '|') {
+				fprintf(stdout, "\n");
+				if (touchpad_text[i+1] == ' ') {
+					i++;
+				}
+				lines++;
 			} else {
 				fprintf(stdout, "%c", c);
 			}
+		}
+		for (i=lines;i<3;i++) {
+			fprintf(stdout, "\n");
 		}
 		fprintf(stdout, ANSI_SGR_RESET "\n");
 		for (i=1;i<=96;i++) {
@@ -318,6 +335,7 @@ touchpad_display_draw()
 			  && !gZoneData[i].isTrouble
 			  && !gZoneData[i].isFault
 			  && !gZoneData[i].isAlarm
+			  && ((gZoneData[i].lastChangedAt == 0) || (time(NULL)-gZoneData[i].lastChangedAt > 30))
 			) {
 				continue;
 			}

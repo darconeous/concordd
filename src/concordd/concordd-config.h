@@ -35,5 +35,7 @@
 #define kCONCORDDConfig_LightChangedCommand "LightChangedCommand"
 #define kCONCORDDConfig_OutputChangedCommand "OutputChangedCommand"
 #define kCONCORDDConfig_ZoneChangedCommand "ZoneChangedCommand"
+#define kCONCORDDConfig_AcPowerFailureCommand "AcPowerFailureCommand"
+#define kCONCORDDConfig_AcPowerRestoredCommand "AcPowerRestoredCommand"
 
 #endif

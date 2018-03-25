@@ -56,6 +56,14 @@ concordd_get_partition_index(concordd_instance_t self, concordd_partition_t part
 }
 
 void
+concordd_instance_info_changed(concordd_instance_t self, int changed)
+{
+    if (self->instance_info_changed_func != NULL) {
+        (*self->instance_info_changed_func)(self->context, self, changed);
+    }
+}
+
+void
 concordd_partition_info_changed(concordd_instance_t self, concordd_partition_t partition, int changed)
 {
     if (self->partition_info_changed_func != NULL) {
@@ -70,6 +78,20 @@ concordd_zone_info_changed(concordd_instance_t self, concordd_zone_t zone, int c
         (*self->zone_info_changed_func)(self->context, self, zone, changed);
     }
 }
+
+struct concordd_device_s *
+concordd_get_device(concordd_instance_t self, int deviceid)
+{
+	int i;
+	for (i = 0; i<self->bus_device_count; i++) {
+		struct concordd_device_s *device = &self->bus_device[i];
+		if (device->active == true && device->device_id == deviceid) {
+			return device;
+		}
+	}
+	return NULL;
+}
+
 
 concordd_zone_t
 concordd_get_zone(concordd_instance_t self, int i)
@@ -170,6 +192,9 @@ ge_rs232_status_t
 concordd_equipment_refresh(concordd_instance_t self, void (*finished)(void* context,ge_rs232_status_t status), void* context)
 {
 	static const uint8_t refresh_equipment_msg[] = { GE_RS232_ATP_EQUIP_LIST_REQUEST };
+	self->refresh_pending = true;
+	self->bus_device_count = 0;
+    // TODO: Invalidate all alarm/trouble events (but not log)
 	return ge_queue_message(&self->ge_queue, refresh_equipment_msg, sizeof(refresh_equipment_msg), finished, context);
 }
 
@@ -196,7 +221,7 @@ concordd_press_keys(concordd_instance_t self, int partition, const char* keys, v
 		0,	// Area
 	};
 	uint8_t len = 3;
-    syslog(LOG_NOTICE, "Will send key sequence \"%s\" to partition %d", keys, partition);
+    //syslog(LOG_DEBUG, "Will send key sequence \"%s\" to partition %d", keys, partition);
 
 	for(;*keys && len < GE_RS232_MAX_MESSAGE_SIZE;keys++) {
 		uint8_t code = 255;
@@ -304,6 +329,11 @@ concordd_handle_alarm(concordd_instance_t self, uint8_t partitioni, uint8_t st, 
         if (type_s < CONCORDD_SYSTEM_TROUBLE_TYPE_MAX) {
             self->trouble_events[type_s] = event;
         }
+		if (type_s == GE_RS232_SYSTEM_TROUBLE_SPECIFIC_MAIN_AC_FAIL) {
+			self->ac_power_failure = (type_g == GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_TROUBLE);
+			self->ac_power_failure_changed_timestamp = time(NULL);
+			concordd_instance_info_changed(self, CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED);
+		}
         syslog(LOG_NOTICE, "[SYSTEM-TROUBLE%s] \"%s\" CODE:%d.%d SOURCE:%d", status_string, ge_specific_system_trouble_to_cstr(NULL, type_s), type_g, type_s, source);
         break;
 
@@ -337,6 +367,35 @@ concordd_handle_alarm(concordd_instance_t self, uint8_t partitioni, uint8_t st, 
             esd);
         break;
 
+    case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_CONFIG_CHANGE:
+        if (type_s == 0) {
+			if (partitioni > 1) {
+				self->programming_mode = true;
+				concordd_instance_info_changed(self, CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED);
+			}
+			syslog(LOG_NOTICE, "[BEGIN_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
+		} else if (type_s == 1) {
+			syslog(LOG_NOTICE, "[END_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
+			if (partitioni > 1) {
+				self->programming_mode = false;
+				concordd_instance_info_changed(self, CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED);
+			}
+		} else if (type_s == 2) {
+			syslog(LOG_NOTICE, "[END_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
+			if (partitioni > 1) {
+				self->programming_mode = false;
+				concordd_instance_info_changed(self, CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED);
+			}
+		} else {
+			syslog(LOG_NOTICE, "[EVENT] CODE:%d.%d PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d",
+				type_g,
+				type_s,
+				partitioni,
+				st,
+				source,
+				esd);
+		}
+		break;
     case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_EVENT:
         if (type_s == GE_RS232_SYSTEM_EVENT_OUTPUT_ON) {
             concordd_output_t output = concordd_get_output(self,esd);
@@ -375,7 +434,7 @@ concordd_handle_alarm(concordd_instance_t self, uint8_t partitioni, uint8_t st, 
             syslog(LOG_NOTICE, "[OUTPUT-%d-OFF]: SOURCE:%d(0x%06X)", esd, source, source);
             // Stop processing.
             return GE_RS232_STATUS_OK;
-        }
+		}
     default:
         syslog(LOG_NOTICE, "[EVENT] CODE:%d.%d PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d",
             type_g,
@@ -425,7 +484,7 @@ concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, in
                     light->light_state?"ON":"OFF"
                 );
 
-                if (self->light_info_changed_func != NULL) {
+                if (!self->refresh_pending && self->light_info_changed_func != NULL) {
                     (*self->light_info_changed_func)(self->context, self,
                         partition, light,
                         CONCORDD_LIGHT_LIGHT_STATE_CHANGED
@@ -435,10 +494,23 @@ concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, in
         }
         break;
     case GE_RS232_PTA_SUBCMD2_USER_LIGHTS:
-        syslog(LOG_NOTICE, "[USER_LIGHTS] PN:%d", partitioni);
+        syslog(LOG_NOTICE, "[USER_LIGHTS] PN:%d LN:%d LS:%d", partitioni, frame_bytes[8], frame_bytes[9]);
+        if (partition != NULL) {
+			concordd_light_t light = concordd_partition_get_light(partition, frame_bytes[8]);
+			if (light != NULL) {
+				light->light_state = (frame_bytes[9] != 0);
+                light->last_changed_at = time(NULL);
+                if (self->light_info_changed_func != NULL) {
+                    (*self->light_info_changed_func)(self->context, self,
+                        partition, light,
+                        CONCORDD_LIGHT_LIGHT_STATE_CHANGED
+                        |CONCORDD_LIGHT_LAST_CHANGED_AT_CHANGED);
+                }
+			}
+        }
         break;
     case GE_RS232_PTA_SUBCMD2_KEYFOB:
-        syslog(LOG_NOTICE, "[KEYFOB] PN:%d", partitioni);
+        syslog(LOG_NOTICE, "[KEYFOB] PN:%d ZONE:%d KC:%d", partitioni, frame_bytes[5], frame_bytes[6]);
         break;
     default:
         syslog(LOG_WARNING, "[UNHANDLED_SUBCMD2_%02X]",frame_bytes[1]);
@@ -518,24 +590,29 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 	case GE_RS232_PTA_SUBCMD_TOUCHPAD_DISPLAY:
 		{
 		int partitioni = frame_bytes[2];
+		uint8_t type = frame_bytes[4]; // Seems to always be "1" on concord
+		bool lcd_text_changed = true;
 		concordd_partition_t partition = concordd_get_partition(self, partitioni);
+
 		if (partition != NULL) {
-			bool lcd_text_changed = (frame_len-5 != partition->encoded_touchpad_text_len)
+			lcd_text_changed = (frame_len-5 != partition->encoded_touchpad_text_len)
 				|| (0 != memcmp(frame_bytes+5, partition->encoded_touchpad_text, frame_len-5));
             partition->active = true;
 
 			partition->encoded_touchpad_text_len = frame_len-5;
 			memcpy(partition->encoded_touchpad_text, frame_bytes+5, frame_len-5);
 
-            syslog(LOG_DEBUG,
-                "[TOUCHPAD] PN:%d \"%s\"",
-                partitioni,
-                ge_text_to_ascii_one_line(partition->encoded_touchpad_text,partition->encoded_touchpad_text_len)
-            );
-
 			if (lcd_text_changed) {
                 concordd_partition_info_changed(self, partition, CONCORDD_PARTITION_TOUCHPAD_TEXT_CHANGED);
             }
+		}
+		if (lcd_text_changed) {
+			syslog(type==1?LOG_DEBUG:LOG_NOTICE,
+				"[TOUCHPAD] PN:%d TYPE:%d \"%s\"",
+				partitioni,
+				type,
+				ge_text_to_ascii_one_line(frame_bytes+5, frame_len-5)
+			);
 		}
 		}
 
@@ -597,7 +674,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 		break;
 
 	case GE_RS232_PTA_SUBCMD_FEATURE_STATE:
-        syslog(LOG_INFO,"[FEATURE_STATE] 0x%08X", frame_bytes[4]);
+        syslog(LOG_INFO,"[FEATURE_STATE] 0x%02X", frame_bytes[4]);
 		{
 			int i = frame_bytes[2];
 			concordd_partition_t partition = concordd_get_partition(self, i);
@@ -619,7 +696,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 
 	case GE_RS232_PTA_SUBCMD_TEMPERATURE:
 		syslog(LOG_INFO,
-			"[TEMPERATURE] PN:%d AREA:%d CUR:%d°F LOW:%d°f HIGH:%d°F",
+			"[TEMPERATURE] PN:%d AREA:%d CUR:%d°F LOW:%d°F HIGH:%d°F",
 			frame_bytes[2],
 			frame_bytes[3],
 			frame_bytes[4],
@@ -637,6 +714,8 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			frame_bytes[2],
 			frame_bytes[3]
 		);
+		// TIME_AND_DATE
+		self->refresh_pending = false;
 		break;
 
 	default:
@@ -706,18 +785,14 @@ concordd_handle_equip_list_partition_data(concordd_instance_t self, const uint8_
 			partition->arm_level = frame_bytes[3];
 		}
 
-		partition->encoded_touchpad_text_len = frame_len-4;
-		memcpy(partition->encoded_touchpad_text, frame_bytes+4, frame_len-4);
-		changes |= CONCORDD_PARTITION_TOUCHPAD_TEXT_CHANGED;
-
 		if (changes != 0) {
 			concordd_partition_info_changed(self, partition, changes);
 		}
 
-		syslog(LOG_NOTICE, "[EQUIP_LIST_PARTITION_DATA] PN:%d ARM:%d TEXT:\"%s\"",
+		syslog(LOG_INFO, "[EQUIP_LIST_PARTITION_DATA] PN:%d ARM:%d TEXT:\"%s\"",
 			frame_bytes[1],
 			frame_bytes[3],
-            ge_text_to_ascii_one_line(partition->encoded_touchpad_text, partition->encoded_touchpad_text_len)
+            ge_text_to_ascii_one_line(frame_bytes+4, frame_len-4)
 		);
     }
 
@@ -730,17 +805,19 @@ concordd_handle_equip_list_superbus_dev_data(concordd_instance_t self, const uin
 	int partitioni = frame_bytes[1];
 	int deviceid = (frame_bytes[3]<<16)+(frame_bytes[4]<<8)+frame_bytes[5];
 	bool fault = (frame_bytes[6] != 0);
-	int unitid = frame_bytes[7];
+	struct concordd_device_s *device = &self->bus_device[self->bus_device_count++];
+
+	device->active = true;
+	device->device_id = deviceid;
+	device->device_status = frame_bytes[6];
 
     syslog(
-		fault?LOG_ERR:LOG_NOTICE,
-		"[EQUIP_LIST_SUPERBUS_DEV_DATA] PN:%d DEVICEID:%d(0x%06X) FAULT:%d UNIT:%d",
+		fault?LOG_ERR:LOG_INFO,
+		"[EQUIP_LIST_SUPERBUS_DEV_DATA] PN:%d DEVICEID:%d(0x%06X) FAULT:%d",
 		partitioni,
 		deviceid,deviceid,
 		fault,
-		unitid);
-
-	// TODO: Writeme
+		frame_len);
 
     return GE_RS232_STATUS_OK;
 }
@@ -749,9 +826,18 @@ static ge_rs232_status_t
 concordd_handle_equip_list_superbus_cap_data(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
 	int deviceid = (frame_bytes[1]<<16)+(frame_bytes[2]<<8)+frame_bytes[3];
+	struct concordd_device_s *device = concordd_get_device(self, deviceid);
 	int cap = frame_bytes[4];
 	int data = frame_bytes[5];
 	const char* cap_string = "UNKNOWN";
+	if (device != NULL) {
+		device->caps |= (1<<cap);
+		if (cap == 0x08) {
+			device->input_count = data;
+		} else if (cap == 0x0b) {
+			device->output_count = data;
+		}
+	}
 
 	switch(cap) {
 	case 0x00: cap_string = "Power Supervision"; break;
@@ -782,7 +868,7 @@ concordd_handle_equip_list_superbus_cap_data(concordd_instance_t self, const uin
 	}
 
     syslog(
-		LOG_NOTICE,
+		LOG_INFO,
 		"[EQUIP_LIST_SUPERBUS_CAP_DATA] DEVICEID:%d(0x%06X) CN:0x%02X(%s) CD:%d",
 		deviceid,deviceid,
 		cap,
@@ -810,7 +896,7 @@ concordd_handle_equip_list_output_data(concordd_instance_t self, const uint8_t* 
 		output->encoded_name_len = frame_len-9;
 		memcpy(output->encoded_name, frame_bytes+9, frame_len-9);
 
-		syslog(LOG_NOTICE, "[EQUIP_LIST_OUTPUT_DATA] OUT:%d(0x%02X) STATE:%d PULSE:%d ID:%02X%02X%02X%02X%02X NAME:\"%s\"",
+		syslog(LOG_INFO, "[EQUIP_LIST_OUTPUT_DATA] OUT:%d(0x%02X) STATE:%d PULSE:%d ID:%02X%02X%02X%02X%02X NAME:\"%s\"",
 			outputi,
 			outputi,
 			output->output_state,
@@ -859,7 +945,7 @@ concordd_handle_equip_list_light_to_sensor_data(concordd_instance_t self, const 
 			}
 			light->zone_id = frame_bytes[2+i];
 			if (light->zone_id) {
-				syslog(LOG_NOTICE, "[EQUIP_LIST_LIGHT_TO_SENSOR_DATA] PN:%d LIGHT:%d ZONE:%d",
+				syslog(LOG_INFO, "[EQUIP_LIST_LIGHT_TO_SENSOR_DATA] PN:%d LIGHT:%d ZONE:%d",
 					frame_bytes[2],
 					i,
 					light->zone_id
@@ -895,9 +981,9 @@ concordd_handle_equip_list_zone_data(concordd_instance_t self, const uint8_t* fr
 			zone->type = frame_bytes[6];
 		}
 		if (zone->zone_state != frame_bytes[7]) {
-			uint8_t changed_state = (zone->zone_state^frame_bytes[7])&~GE_RS232_ZONE_STATUS_TRIPPED;
-			zone->zone_state = frame_bytes[7] | (zone->zone_state&GE_RS232_ZONE_STATUS_TRIPPED);
-			changes |= changed_state<<8;
+			uint8_t changed_state = (zone->zone_state^frame_bytes[7]);
+			zone->zone_state = frame_bytes[7];
+			changes |= (changed_state<<8);
 		}
 
 		zone->encoded_name_len = frame_len-8;
@@ -907,22 +993,23 @@ concordd_handle_equip_list_zone_data(concordd_instance_t self, const uint8_t* fr
 			concordd_zone_info_changed(self, zone, changes);
 		}
 
-        syslog(LOG_NOTICE,"[EQUIP_LIST_ZONE_INFO] ZONE:%d PN:%d AREA:%d TYPE:%d GROUP:%d STATUS:%s%s%s%s%s TEXT:\"%s\"",
+        syslog(LOG_INFO,"[EQUIP_LIST_ZONE_INFO] ZONE:%d PN:%d AREA:%d TYPE:%d GROUP:\"%s\"(%d) STATUS:%s%s%s%s%s TEXT:\"%s\"",
             zonei,
             zone->partition_id,
             frame_bytes[2],
             zone->type,
+			concordd_zone_group_get_name(zone->group),
             zone->group,
-            "?",
-            zone->zone_state&GE_RS232_ZONE_STATUS_FAULT?"F":"-",
-            zone->zone_state&GE_RS232_ZONE_STATUS_ALARM?"A":"-",
-            zone->zone_state&GE_RS232_ZONE_STATUS_TROUBLE?"R":"-",
-            zone->zone_state&GE_RS232_ZONE_STATUS_BYPASSED?"B":"-",
+            frame_bytes[7]&GE_RS232_ZONE_STATUS_TRIPPED?"T":"-",
+            frame_bytes[7]&GE_RS232_ZONE_STATUS_FAULT?"F":"-",
+            frame_bytes[7]&GE_RS232_ZONE_STATUS_ALARM?"A":"-",
+            frame_bytes[7]&GE_RS232_ZONE_STATUS_TROUBLE?"R":"-",
+            frame_bytes[7]&GE_RS232_ZONE_STATUS_BYPASSED?"B":"-",
             ge_text_to_ascii_one_line(zone->encoded_name, zone->encoded_name_len)
 
         );
     } else {
-        syslog(LOG_NOTICE,"[EQUIP_LIST_ZONE_INFO] ZONE:%d *ERROR*",zonei);
+        syslog(LOG_WARNING,"[EQUIP_LIST_ZONE_INFO] ZONE:%d *ERROR*",zonei);
     }
 
 	return GE_RS232_STATUS_OK;
@@ -976,8 +1063,16 @@ concordd_handle_equip_list_user_data(concordd_instance_t self, const uint8_t* fr
 static ge_rs232_status_t
 concordd_handle_panel_type(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
-    // TODO: Writeme
-    syslog(LOG_DEBUG, "[PANEL_TYPE]");
+	self->panel_type = frame_bytes[1];
+	self->hw_rev = (frame_bytes[2]<<8) + frame_bytes[3];
+	self->sw_rev = (frame_bytes[4]<<8) + frame_bytes[5];
+	self->serial_number = (frame_bytes[6]<<24) + (frame_bytes[7]<<16) + (frame_bytes[8]<<8) + frame_bytes[9];
+    syslog(LOG_NOTICE, "[PANEL_TYPE] PT:0x%02X HR:0x%04X SR:0x%04X SN:0x%08x",
+		frame_bytes[1],
+		(frame_bytes[2]<<8) + frame_bytes[3],
+		(frame_bytes[4]<<8) + frame_bytes[5],
+		(frame_bytes[6]<<24) + (frame_bytes[7]<<16) + (frame_bytes[8]<<8) + frame_bytes[9]
+		);
     return GE_RS232_STATUS_OK;
 }
 
@@ -995,12 +1090,12 @@ concordd_handle_frame(concordd_instance_t self, const uint8_t* frame_bytes, int 
 		break;
 	case GE_RS232_PTA_CLEAR_AUTOMATION_DYNAMIC_IMAGE:
         syslog(LOG_NOTICE, "[CLEAR_AUTOMATION_DYNAMIC_IMAGE]");
-        // TODO: Invalidate all alarm/trouble events (but not log)
-//        return concordd_equipment_refresh(self, NULL, NULL);
+        return concordd_refresh(self, NULL, NULL);
 		break;
     case GE_RS232_PTA_EQUIP_LIST_COMPLETE:
         syslog(LOG_NOTICE, "[EQUIP_LIST_COMPLETE]");
 		concordd_dynamic_data_refresh(self, NULL, NULL);
+
         break;
 	case GE_RS232_PTA_ZONE_STATUS:
 		return concordd_handle_zone_status(self, frame_bytes, frame_len);
@@ -1049,6 +1144,14 @@ concordd_get_timeout_cms(concordd_instance_t self)
 ge_rs232_status_t
 concordd_set_light(concordd_instance_t self, int partitioni, int lighti, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
+	if (self->programming_mode) {
+        return GE_RS232_STATUS_ERROR;
+	}
+
+	if (self->refresh_pending) {
+        return GE_RS232_STATUS_WAIT;
+	}
+
     concordd_partition_t partition = concordd_get_partition(self, partitioni);
     const char cmd[] = { '[','1','1'-state,']','0'+lighti,0};
 
@@ -1066,11 +1169,19 @@ concordd_set_light(concordd_instance_t self, int partitioni, int lighti, bool st
 ge_rs232_status_t
 concordd_set_output(concordd_instance_t self, int outputi, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
+	if (self->programming_mode) {
+        return GE_RS232_STATUS_ERROR;
+	}
+
+	if (self->refresh_pending) {
+        return GE_RS232_STATUS_WAIT;
+	}
+
     concordd_output_t output = concordd_get_output(self, outputi);
 
     const char cmd[] = { '7','7','0'+outputi,0};
 
-    if (outputi < 0) {
+    if (output == NULL || output->active == false || outputi < 0) {
         return GE_RS232_STATUS_INVALID_ARGUMENT;
     }
 
@@ -1084,9 +1195,13 @@ concordd_set_output(concordd_instance_t self, int outputi, bool state, void (*fi
 ge_rs232_status_t
 concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
+	if (self->programming_mode) {
+        return GE_RS232_STATUS_ERROR;
+	}
+
     concordd_partition_t partition = concordd_get_partition(self, partitioni);
 
-    if (partition == NULL) {
+    if (partition == NULL || !partition->active) {
         return GE_RS232_STATUS_INVALID_ARGUMENT;
     }
 
@@ -1105,4 +1220,312 @@ concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, 
     }
 
     return GE_RS232_STATUS_ALREADY;
+}
+
+
+#define CONCORDD_ZONE_PROPERTY_INTERIOR        (1<<0)
+#define CONCORDD_ZONE_PROPERTY_EXTERIOR        (1<<1)
+#define CONCORDD_ZONE_PROPERTY_POLICE          (1<<2)
+#define CONCORDD_ZONE_PROPERTY_AUXILIARY       (1<<3)
+#define CONCORDD_ZONE_PROPERTY_FIRE            (1<<4)
+#define CONCORDD_ZONE_PROPERTY_RESTORAL        (1<<5)
+#define CONCORDD_ZONE_PROPERTY_SUPERVISORY     (1<<6)
+#define CONCORDD_ZONE_PROPERTY_CS_REPORT       (1<<7)
+#define CONCORDD_ZONE_PROPERTY_CHIME           (1<<8)
+#define CONCORDD_ZONE_PROPERTY_DELAY           (1<<9)
+#define CONCORDD_ZONE_PROPERTY_LEVEL_1         (1<<10)
+#define CONCORDD_ZONE_PROPERTY_LEVEL_2         (1<<11)
+#define CONCORDD_ZONE_PROPERTY_LEVEL_3         (1<<12)
+#define CONCORDD_ZONE_PROPERTY_PANIC           (1<<13)
+
+int
+concordd_zone_group_get_properties(int group)
+{
+	int group_prop[] = {
+		[0] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[1] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[2] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[3] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[4] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[5] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[6] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[7] = CONCORDD_ZONE_PROPERTY_PANIC
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[8] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[9] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[10] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_EXTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_CHIME
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[11] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_EXTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_CHIME
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[12] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_EXTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_CHIME
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[13] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_EXTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_CHIME
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[14] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_FOLLOWER
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[15] = CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_FOLLOWER
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[16] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_FOLLOWER
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[17] = CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_FOLLOWER
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[18] = CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_FOLLOWER
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[19] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[20] = CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[21] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[22] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[23] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[24] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_DELAY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[25] = CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CHIME
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[26] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_INTERIOR
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_FIRE
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[27] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[28] = CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[29] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[32] = CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[33] = CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[34] = CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[35] = CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_POLICE
+			| CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+		[38] = CONCORDD_ZONE_PROPERTY_SUPERVISORY
+			| CONCORDD_ZONE_PROPERTY_CS_REPORT
+			| CONCORDD_ZONE_PROPERTY_AUXILIARY
+			| CONCORDD_ZONE_PROPERTY_RESTORAL
+			| CONCORDD_ZONE_PROPERTY_LEVEL_1
+			| CONCORDD_ZONE_PROPERTY_LEVEL_2
+			| CONCORDD_ZONE_PROPERTY_LEVEL_3,
+	};
+	if (group >= 0 && group < (sizeof(group_prop)/sizeof(group_prop[0]))) {
+		return group_prop[group];
+	}
+	return 0;
+}
+
+const char*
+concordd_zone_group_get_name(int group)
+{
+	const char* group_name[] = {
+		[0] = "Fixed panic",
+		[1] = "Portable panic",
+		[2] = "Fixed silent panic",
+		[3] = "Portable silent panic",
+		[4] = "Fixed auxiliary",
+		[5] = "Fixed auxiliary w/confirm",
+		[6] = "Portable auxiliary panic",
+		[7] = "Portable auxiliary panic w/confirm",
+		[8] = "Special intrusion",
+		[9] = "Special intrusion w/delay",
+		[10] = "Entry/exit door w/delay",
+		[11] = "Entry/exit door w/ext-delay",
+		[12] = "Entry/exit door w/2ext-delay",
+		[13] = "Exterior door/window",
+		[14] = "Interior door/window",
+		[15] = "Interior motion",
+		[16] = "Interior door",
+		[17] = "Interior motion",
+		[18] = "Interior motion (cross-zone)",
+		[19] = "Interior door w/delay",
+		[20] = "Interior motion w/delay",
+		[21] = "Local interior",
+		[22] = "Local interior w/delay",
+		[23] = "Local auxiliary",
+		[24] = "Local auxiliary (siren off at restoral)",
+		[25] = "Local special chime",
+		[26] = "Fire",
+		[27] = "Hardware Output Module",
+		[28] = "Hardware Output Module",
+		[29] = "Freeze sensor",
+		[32] = "Hardware Output Module",
+		[33] = "Wireless siren supervision",
+		[34] = "Carbon monoxide gas detector",
+		[35] = "Local police",
+		[38] = "Water sensor",
+	};
+	if (group >= 0 && group < (sizeof(group_name)/sizeof(group_name[0]))) {
+		return group_name[group];
+	}
+	return NULL;
 }

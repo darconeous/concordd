@@ -656,6 +656,24 @@ concordd_dbus_handle_system_get_info(
                       DBUS_TYPE_INT32,
                       &i);
 
+	b = self->instance->programming_mode;
+	append_dict_entry(&dict,
+					  CONCORDD_DBUS_INFO_PROGRAMMING_MODE,
+					  DBUS_TYPE_BOOLEAN,
+					  &b);
+
+	b = self->instance->ac_power_failure;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_AC_POWER_FAILURE,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+	i = self->instance->ac_power_failure_changed_timestamp;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_AC_POWER_FAILURE_CHANGED_TIMESTAMP,
+                      DBUS_TYPE_INT32,
+                      &i);
+
     dbus_message_iter_close_container(&iter, &dict);
 
     dbus_connection_send(self->dbus_connection, reply, NULL);
@@ -742,6 +760,12 @@ concordd_dbus_handle_output_get_info(
 	b = output->output_state;
     append_dict_entry(&dict,
                       CONCORDD_DBUS_INFO_VALUE,
+                      DBUS_TYPE_BOOLEAN,
+                      &b);
+
+	b = output->pulse;
+    append_dict_entry(&dict,
+                      CONCORDD_DBUS_INFO_PULSE,
                       DBUS_TYPE_BOOLEAN,
                       &b);
 
@@ -1201,9 +1225,141 @@ bail:
     }
 }
 
+static DBusHandlerResult
+concordd_dbus_handle_partition_get_troubles(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	return ret;
+}
+
+static DBusHandlerResult
+concordd_dbus_handle_partition_get_alarms(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	return ret;
+}
+
+static DBusHandlerResult
+concordd_dbus_handle_system_get_troubles(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	return ret;
+}
+
+static DBusHandlerResult
+concordd_dbus_handle_system_get_event_log(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+	return ret;
+}
+
 void
 concordd_dbus_system_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, int changed)
 {
+    DBusMessageIter iter;
+    DBusMessageIter dict;
+    DBusMessage *message = NULL;
+
+	if (changed == 0) {
+		goto bail;
+	}
+
+    message = dbus_message_new_signal(
+        CONCORDD_DBUS_PATH_ROOT,
+        CONCORDD_DBUS_INTERFACE,
+        CONCORDD_DBUS_SIGNAL_CHANGED
+    );
+
+    dbus_message_iter_init_append(message, &iter);
+
+    if (!dbus_message_iter_open_container(
+        &iter,
+        DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+        DBUS_TYPE_STRING_AS_STRING
+        DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &dict
+    )) {
+        goto bail;
+    }
+
+    const char* cstr = NULL;
+    int i = -1;
+    dbus_bool_t b = false;
+
+	if (changed & CONCORDD_INSTANCE_PANEL_TYPE_CHANGED) {
+		i = self->instance->panel_type;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_PANEL_TYPE,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_INSTANCE_HW_REV_CHANGED) {
+		i = self->instance->hw_rev;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_HW_REVISION,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_INSTANCE_SW_REV_CHANGED) {
+		i = self->instance->sw_rev;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SW_REVISION,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_INSTANCE_SERIAL_NUMBER_CHANGED) {
+		i = self->instance->serial_number;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_SERIAL_NUMBER,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED) {
+		b = self->instance->programming_mode;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_PROGRAMMING_MODE,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+	if (changed & CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED) {
+		b = self->instance->ac_power_failure;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_AC_POWER_FAILURE,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
+    dbus_message_iter_close_container(&iter, &dict);
+
+    dbus_connection_send(self->dbus_connection, message, NULL);
+
+bail:
+    if (message != NULL) {
+        dbus_message_unref(message);
+    }
 }
 
 void
@@ -1758,6 +1914,23 @@ dbus_message_handler(
                                     CONCORDD_DBUS_CMD_SET_ARM_LEVEL)) {
         if (concordd_dbus_path_is_partition(path)) {
             return concordd_dbus_handle_partition_set_arm_level(self, connection, message);
+        }
+    } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,
+                                    CONCORDD_DBUS_CMD_GET_TROUBLES)) {
+        if (concordd_dbus_path_is_partition(path)) {
+            return concordd_dbus_handle_partition_get_troubles(self, connection, message);
+        } else if (concordd_dbus_path_is_system(path)) {
+            return concordd_dbus_handle_system_get_troubles(self, connection, message);
+        }
+    } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,
+                                    CONCORDD_DBUS_CMD_GET_ALARMS)) {
+        if (concordd_dbus_path_is_partition(path)) {
+            return concordd_dbus_handle_partition_get_alarms(self, connection, message);
+        }
+    } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,
+                                    CONCORDD_DBUS_CMD_GET_EVENTLOG)) {
+        if (concordd_dbus_path_is_system(path)) {
+            return concordd_dbus_handle_system_get_event_log(self, connection, message);
         }
 
     } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,

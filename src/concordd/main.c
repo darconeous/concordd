@@ -115,6 +115,8 @@ static const char* gSystemEventCommand;
 static const char* gLightChangedCommand;
 static const char* gOutputChangedCommand;
 static const char* gZoneChangedCommand;
+static const char* gAcPowerFailureCommand;
+static const char* gAcPowerRestoredCommand;
 
 #if HAVE_PWD_H
 static const char* gPrivDropToUser = CONCORDD_DEFAULT_PRIV_DROP_USER;
@@ -174,6 +176,18 @@ signal_SIGHUP(int sig)
 	// We don't restore the "previous handler"
 	// because we always want to let the main
 	// loop decide what to do for hangups.
+}
+
+static void
+signal_SIGCHLD(int sig)
+{
+	// Automatically call wait as children terminate.
+    int stat = 0;
+    pid_t pid = -1;
+
+	do {
+		pid = waitpid(-1, &stat, WNOHANG);
+	} while (pid > 0);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -283,6 +297,21 @@ set_config_param(
         }
         ret = 0;
 
+	} else if (strcaseequal(key, kCONCORDDConfig_AcPowerFailureCommand)) {
+        if (value[0] == 0) {
+            gAcPowerFailureCommand = NULL;
+        } else {
+            gAcPowerFailureCommand = strdup(value);
+        }
+        ret = 0;
+
+	} else if (strcaseequal(key, kCONCORDDConfig_AcPowerRestoredCommand)) {
+        if (value[0] == 0) {
+            gAcPowerRestoredCommand = NULL;
+        } else {
+            gAcPowerRestoredCommand = strdup(value);
+        }
+        ret = 0;
 
 	} else if (strcaseequal(key, kCONCORDDConfig_PIDFile)) {
 		if (gPIDFilename)
@@ -393,6 +422,42 @@ send_bytes_func(struct concordd_state_s* context, const uint8_t* data, int len, 
 }
 
 void
+concordd_instance_info_changed_func(void* context, concordd_instance_t instance, int changed)
+{
+    struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
+
+	// Pass-thru to D-Bus first.
+	concordd_dbus_system_info_changed_func(&concordd_state->dbus_server, instance, changed);
+
+    if (0 == (changed & CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED)) {
+		// We only handle AC power failure changes
+        return;
+    }
+
+	const char* command = NULL;
+
+	if (instance->ac_power_failure) {
+		command = gAcPowerFailureCommand;
+	} else {
+		command = gAcPowerRestoredCommand;
+	}
+
+	if (command == NULL) {
+		return;
+	}
+
+	// Now handle via system.
+    int pid = fork();
+    if (pid == -1) {
+        syslog(LOG_ERR, "concordd_instance_info_changed_func: fork() failed: %s", strerror(errno));
+
+    } else if (pid == 0) {
+		// Child
+        _exit(system(command));
+    }
+}
+
+void
 concordd_partition_info_changed_func(void* context, concordd_instance_t instance, concordd_partition_t partition, int changed)
 {
     struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
@@ -466,10 +531,6 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
 		}
 
         _exit(system(gZoneChangedCommand));
-    } else {
-        // Parent
-        int stat = 0;
-        pid_t ret = waitpid(pid, &stat, 0);
     }
 }
 
@@ -598,10 +659,6 @@ concordd_event_func(void* context, concordd_instance_t instance, concordd_event_
         }
 
         _exit(system(command));
-    } else {
-        // Parent
-        int stat = 0;
-        pid_t ret = waitpid(pid, &stat, 0);
     }
 }
 
@@ -652,10 +709,6 @@ concordd_light_info_changed_func(void* context,  concordd_instance_t instance, c
         }
 
         _exit(system(gLightChangedCommand));
-    } else {
-        // Parent
-        int stat = 0;
-        pid_t ret = waitpid(pid, &stat, 0);
     }
 }
 
@@ -703,10 +756,6 @@ concordd_output_info_changed_func(void* context, concordd_instance_t instance, c
         }
 
         _exit(system(gOutputChangedCommand));
-    } else {
-        // Parent
-        int stat = 0;
-        pid_t ret = waitpid(pid, &stat, 0);
     }
 }
 
@@ -753,6 +802,9 @@ main(int argc, char * argv[])
 	gPreviousHandlerForSIGINT = signal(SIGINT, &signal_SIGINT);
 	gPreviousHandlerForSIGTERM = signal(SIGTERM, &signal_SIGTERM);
 	signal(SIGHUP, &signal_SIGHUP);
+
+	// Automatically clean up child processes.
+	signal(SIGCHLD, &signal_SIGCHLD);
 
 	// Always ignore SIGPIPE.
 	signal(SIGPIPE, SIG_IGN);
@@ -981,6 +1033,7 @@ main(int argc, char * argv[])
     concordd_state.instance.light_info_changed_func = &concordd_light_info_changed_func;
     concordd_state.instance.output_info_changed_func = &concordd_output_info_changed_func;
 	concordd_state.instance.zone_info_changed_func = &concordd_zone_info_changed_func;
+	concordd_state.instance.instance_info_changed_func = &concordd_instance_info_changed_func;
 	concordd_state.instance.partition_info_changed_func = &concordd_partition_info_changed_func;
 	concordd_state.instance.siren_sync_func = &concordd_siren_sync_func;
 
@@ -1081,15 +1134,15 @@ main(int argc, char * argv[])
 		);
 
 		if (fds_ready < 0) {
-			syslog(LOG_ERR, "select() errno=\"%s\" (%d)", strerror(errno),
-			       errno);
-
 			if (errno == EINTR) {
 				// EINTR isn't necessarily bad. If it was something bad,
 				// we would either already be terminated or gRet will be
 				// set and we will break out of the main loop in a moment.
 				continue;
 			}
+			syslog(LOG_ERR, "select() errno=\"%s\" (%d)", strerror(errno),
+			       errno);
+
 			gRet = ERRORCODE_ERRNO;
 			break;
 		}
