@@ -37,7 +37,7 @@
 #define CONCORDD_DBUS_CMD_REFRESH              "refresh"
 #define CONCORDD_DBUS_CMD_SEND_RAW_FRAME              "send_raw_frame"
 
-#define CONCORDD_DBUS_CMD_GET_TROUBLE              "get_troubles" // Returns array of events
+#define CONCORDD_DBUS_CMD_GET_TROUBLES             "get_troubles" // Returns array of events
 #define CONCORDD_DBUS_CMD_GET_ALARMS               "get_alarms" // Returns array of events
 #define CONCORDD_DBUS_CMD_GET_EVENTLOG               "get_event_log" // Returns array of events
 
@@ -82,6 +82,9 @@
 #define CONCORDD_DBUS_INFO_HW_REVISION      "hwRevision"   // unsigned int
 #define CONCORDD_DBUS_INFO_SW_REVISION      "swRevision"   // unsigned int
 #define CONCORDD_DBUS_INFO_SERIAL_NUMBER    "serialNumber" // unsigned int
+#define CONCORDD_DBUS_INFO_PROGRAMMING_MODE "programmingMode" // bool
+#define CONCORDD_DBUS_INFO_AC_POWER_FAILURE "acPowerFailure" // bool
+#define CONCORDD_DBUS_INFO_AC_POWER_FAILURE_CHANGED_TIMESTAMP "acPowerFailureChangedTimestamp" // unsigned int
 
 #define CONCORDD_DBUS_INFO_PARTITION_ID     "partitionId"  // unsigned int
 #define CONCORDD_DBUS_INFO_ARM_LEVEL     "armLevel"  // unsigned int
@@ -113,6 +116,7 @@
 #define CONCORDD_DBUS_INFO_VALUE     "value"
 
 #define CONCORDD_DBUS_INFO_OUTPUT_ID     "outputId"  // unsigned int
+#define CONCORDD_DBUS_INFO_PULSE         "pulse"  // boolean
 
 #define CONCORDD_DBUS_INFO_LIGHT_ID     "lightId"  // unsigned int
 #define CONCORDD_DBUS_INFO_LAST_CHANGED_BY     "lastChangedBy"  // unsigned int
