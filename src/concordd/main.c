@@ -480,7 +480,7 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
         return;
     }
 
-    if (0 == (changed & CONCORDD_ZONE_TRIPPED_CHANGED|CONCORDD_ZONE_ALARM_CHANGED|CONCORDD_ZONE_TROUBLE_CHANGED|CONCORDD_ZONE_FAULT_CHANGED)) {
+    if (0 == (changed & (CONCORDD_ZONE_TRIPPED_CHANGED|CONCORDD_ZONE_ALARM_CHANGED|CONCORDD_ZONE_TROUBLE_CHANGED|CONCORDD_ZONE_FAULT_CHANGED))) {
         // We only care about when the zone state has changed.
         return;
     }
@@ -510,8 +510,14 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
         setenv("CONCORDD_ZONE_GROUP", value, 1);
 
 
-		if ((zone->zone_state&GE_RS232_ZONE_STATUS_TRIPPED) == GE_RS232_ZONE_STATUS_TRIPPED) {
-	        setenv("CONCORDD_ZONE_TRIPPED", "1", 1);
+		if ((changed&CONCORDD_ZONE_TRIPPED_CHANGED) == CONCORDD_ZONE_TRIPPED_CHANGED) {
+	        setenv(
+				"CONCORDD_ZONE_TRIPPED",
+				(zone->zone_state&GE_RS232_ZONE_STATUS_TRIPPED) == GE_RS232_ZONE_STATUS_TRIPPED
+					? "1"
+					: "0",
+				1
+			);
 		}
 
 		if ((zone->zone_state&GE_RS232_ZONE_STATUS_ALARM) == GE_RS232_ZONE_STATUS_ALARM) {
@@ -531,7 +537,9 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
 		}
 
         _exit(system(gZoneChangedCommand));
-    }
+    } else {
+        syslog(LOG_DEBUG, "concordd_zone_info_changed_func: forked system hook");
+	}
 }
 
 void
