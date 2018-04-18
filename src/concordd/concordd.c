@@ -368,25 +368,7 @@ concordd_handle_alarm(concordd_instance_t self, uint8_t partitioni, uint8_t st, 
         break;
 
     case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_CONFIG_CHANGE:
-        if (type_s == 0) {
-			if (partitioni > 1) {
-				self->programming_mode = true;
-				concordd_instance_info_changed(self, CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED);
-			}
-			syslog(LOG_NOTICE, "[BEGIN_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
-		} else if (type_s == 1) {
-			syslog(LOG_NOTICE, "[END_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
-			if (partitioni > 1) {
-				self->programming_mode = false;
-				concordd_instance_info_changed(self, CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED);
-			}
-		} else if (type_s == 2) {
-			syslog(LOG_NOTICE, "[END_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
-			if (partitioni > 1) {
-				self->programming_mode = false;
-				concordd_instance_info_changed(self, CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED);
-			}
-		} else {
+		if ((partition == NULL) || (type_s > 2)) {
 			syslog(LOG_NOTICE, "[EVENT] CODE:%d.%d PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d",
 				type_g,
 				type_s,
@@ -394,6 +376,20 @@ concordd_handle_alarm(concordd_instance_t self, uint8_t partitioni, uint8_t st, 
 				st,
 				source,
 				esd);
+		} else {
+			if (type_s == 0) {
+				partition->programming_mode = true;
+				concordd_instance_info_changed(self, CONCORDD_PARTITION_PROGRAMMING_MODE_CHANGED);
+				syslog(LOG_NOTICE, "[BEGIN_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
+			} else if (type_s == 1) {
+				syslog(LOG_NOTICE, "[END_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
+				partition->programming_mode = false;
+				concordd_instance_info_changed(self, CONCORDD_PARTITION_PROGRAMMING_MODE_CHANGED);
+			} else if (type_s == 2) {
+				syslog(LOG_NOTICE, "[END_PROGRAMMING_MODE] PN:%d SOURCE_TYPE:%d SOURCE_ID:%d EXTRA:%d", partitioni, st, source, esd);
+				partition->programming_mode = false;
+				concordd_instance_info_changed(self, CONCORDD_PARTITION_PROGRAMMING_MODE_CHANGED);
+			}
 		}
 		break;
     case GE_RS232_ALARM_GENERAL_TYPE_SYSTEM_EVENT:
@@ -475,7 +471,6 @@ concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, in
                 }
 
                 light->light_state ^= 1;
-                light->last_changed_at = time(NULL);
 
                 syslog(LOG_NOTICE,
                     "[LIGHT] PN:%d I:%d %s",
@@ -484,12 +479,20 @@ concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, in
                     light->light_state?"ON":"OFF"
                 );
 
-                if (!self->refresh_pending && self->light_info_changed_func != NULL) {
+                if ( !self->refresh_pending
+				  && (light->last_changed_at != 0)
+				  && (self->light_info_changed_func != NULL)
+				) {
+					light->last_changed_at = time(NULL);
                     (*self->light_info_changed_func)(self->context, self,
                         partition, light,
                         CONCORDD_LIGHT_LIGHT_STATE_CHANGED
                         |CONCORDD_LIGHT_LAST_CHANGED_AT_CHANGED);
-                }
+					// If this is light zero, we don't bother with the other lights.
+					break;
+                } else {
+					light->last_changed_at = time(NULL);
+				}
             }
         }
         break;
@@ -738,7 +741,6 @@ concordd_handle_zone_status(concordd_instance_t self, const uint8_t* frame_bytes
 		uint8_t changed_state = zone->zone_state^state;
 
 		zone->zone_state = state;
-        zone->active = true;
 
 		if ( (state&GE_RS232_ZONE_STATUS_TRIPPED)
 		  && (changed_state&GE_RS232_ZONE_STATUS_TRIPPED)
@@ -746,10 +748,13 @@ concordd_handle_zone_status(concordd_instance_t self, const uint8_t* frame_bytes
 			zone->last_tripped_at = time(NULL);
 		}
 
-		if (changed_state != 0) {
+		if ((changed_state != 0) && zone->active) {
 			zone->last_changed_at = time(NULL);
+			zone->active = true;
 			concordd_zone_info_changed(self, zone, changed_state<<8);
 		}
+
+        zone->active = true;
 
         if (changed_state != 0) {
             syslog((changed_state & ~GE_RS232_ZONE_STATUS_TRIPPED) != 0?LOG_WARNING:LOG_INFO,
@@ -966,8 +971,6 @@ concordd_handle_equip_list_zone_data(concordd_instance_t self, const uint8_t* fr
 	if (zone != NULL) {
 		int changes = 0;
 
-		zone->active = true;
-
 		if (zone->partition_id != frame_bytes[1]) {
 			changes |= CONCORDD_ZONE_PARTITION_ID_CHANGED;
 			zone->partition_id = frame_bytes[1];
@@ -989,9 +992,12 @@ concordd_handle_equip_list_zone_data(concordd_instance_t self, const uint8_t* fr
 		zone->encoded_name_len = frame_len-8;
 		memcpy(zone->encoded_name,frame_bytes+8, frame_len-8);
 
-		if (changes != 0) {
+		if ((changes != 0) && zone->active) {
+			zone->active = true;
 			concordd_zone_info_changed(self, zone, changes);
 		}
+
+		zone->active = true;
 
         syslog(LOG_INFO,"[EQUIP_LIST_ZONE_INFO] ZONE:%d PN:%d AREA:%d TYPE:%d GROUP:\"%s\"(%d) STATUS:%s%s%s%s%s TEXT:\"%s\"",
             zonei,
@@ -1144,10 +1150,6 @@ concordd_get_timeout_cms(concordd_instance_t self)
 ge_rs232_status_t
 concordd_set_light(concordd_instance_t self, int partitioni, int lighti, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
-	if (self->programming_mode) {
-        return GE_RS232_STATUS_ERROR;
-	}
-
 	if (self->refresh_pending) {
         return GE_RS232_STATUS_WAIT;
 	}
@@ -1159,6 +1161,10 @@ concordd_set_light(concordd_instance_t self, int partitioni, int lighti, bool st
         return GE_RS232_STATUS_INVALID_ARGUMENT;
     }
 
+	if (partition->programming_mode) {
+        return GE_RS232_STATUS_ERROR;
+	}
+
     if (lighti < 0 || lighti > 9) {
         return GE_RS232_STATUS_INVALID_ARGUMENT;
     }
@@ -1169,10 +1175,6 @@ concordd_set_light(concordd_instance_t self, int partitioni, int lighti, bool st
 ge_rs232_status_t
 concordd_set_output(concordd_instance_t self, int outputi, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
-	if (self->programming_mode) {
-        return GE_RS232_STATUS_ERROR;
-	}
-
 	if (self->refresh_pending) {
         return GE_RS232_STATUS_WAIT;
 	}
@@ -1189,16 +1191,18 @@ concordd_set_output(concordd_instance_t self, int outputi, bool state, void (*fi
         return GE_RS232_STATUS_OK;
     }
 
+	concordd_partition_t partition = concordd_get_partition(self, 1);
+
+	if ((partition != NULL) && partition->programming_mode) {
+        return GE_RS232_STATUS_ERROR;
+	}
+
     return concordd_press_keys(self, 1, cmd, finished, context);
 }
 
 ge_rs232_status_t
 concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
-	if (self->programming_mode) {
-        return GE_RS232_STATUS_ERROR;
-	}
-
     concordd_partition_t partition = concordd_get_partition(self, partitioni);
 
     if (partition == NULL || !partition->active) {
@@ -1206,13 +1210,17 @@ concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, 
     }
 
     if (partition->arm_level != arm_level) {
+		if (partition->programming_mode) {
+			return GE_RS232_STATUS_ERROR;
+		}
+
         switch (arm_level) {
             case 1:
                 return concordd_press_keys(self, partitioni, "[20]", finished, context);
             case 2:
                 return concordd_press_keys(self, partitioni, "[28]", finished, context);
             case 3:
-                // [2B]?
+                // [2B] = arm no delay
                 return concordd_press_keys(self, partitioni, "[27]", finished, context);
             default:
                 return GE_RS232_STATUS_INVALID_ARGUMENT;
