@@ -522,6 +522,12 @@ concordd_dbus_handle_partition_get_info(
                       DBUS_TYPE_INT32,
                       &i);
 
+	b = partition->programming_mode;
+	append_dict_entry(&dict,
+					  CONCORDD_DBUS_INFO_PROGRAMMING_MODE,
+					  DBUS_TYPE_BOOLEAN,
+					  &b);
+
 	{
 		char cadence[33];
 		for(i=0;i<32;i++) {
@@ -655,12 +661,6 @@ concordd_dbus_handle_system_get_info(
                       CONCORDD_DBUS_INFO_SERIAL_NUMBER,
                       DBUS_TYPE_INT32,
                       &i);
-
-	b = self->instance->programming_mode;
-	append_dict_entry(&dict,
-					  CONCORDD_DBUS_INFO_PROGRAMMING_MODE,
-					  DBUS_TYPE_BOOLEAN,
-					  &b);
 
 	b = self->instance->ac_power_failure;
     append_dict_entry(&dict,
@@ -1336,14 +1336,6 @@ concordd_dbus_system_info_changed_func(concordd_dbus_server_t self, concordd_ins
 						  &i);
 	}
 
-	if (changed & CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED) {
-		b = self->instance->programming_mode;
-		append_dict_entry(&dict,
-						  CONCORDD_DBUS_INFO_PROGRAMMING_MODE,
-						  DBUS_TYPE_BOOLEAN,
-						  &b);
-	}
-
 	if (changed & CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED) {
 		b = self->instance->ac_power_failure;
 		append_dict_entry(&dict,
@@ -1425,6 +1417,15 @@ concordd_dbus_partition_info_changed_func(concordd_dbus_server_t self, concordd_
 						  DBUS_TYPE_INT32,
 						  &i);
 	}
+
+	if (changed & CONCORDD_PARTITION_PROGRAMMING_MODE_CHANGED) {
+		b = partition->programming_mode;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_PROGRAMMING_MODE,
+						  DBUS_TYPE_BOOLEAN,
+						  &b);
+	}
+
 
 	if (changed & CONCORDD_PARTITION_SIREN_CADENCE_CHANGED) {
 		char cadence[33];

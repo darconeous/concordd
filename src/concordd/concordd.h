@@ -202,6 +202,7 @@ struct concordd_user_s {
 #define CONCORDD_PARTITION_ENERGY_SAVER_LOW_TEMP_CHANGED	(1<<21)
 #define CONCORDD_PARTITION_ENERGY_SAVER_HIGH_TEMP_CHANGED	(1<<22)
 #define CONCORDD_PARTITION_SIREN_STARTED_AT_CHANGED			(1<<23)
+#define CONCORDD_PARTITION_PROGRAMMING_MODE_CHANGED	        (1<<24)
 struct concordd_partition_s {
 	bool active;
 	uint8_t arm_level;
@@ -210,6 +211,7 @@ struct concordd_partition_s {
 
 	struct concordd_light_s light[10];
 	uint8_t feature_state;
+	bool programming_mode;
 
     struct concordd_event_s alarm_events[CONCORDD_ALARM_TYPE_MAX];
     struct concordd_event_s trouble_events[CONCORDD_TROUBLE_TYPE_MAX];
@@ -232,8 +234,7 @@ struct concordd_partition_s {
 #define CONCORDD_INSTANCE_HW_REV_CHANGED			(1<<9)
 #define CONCORDD_INSTANCE_SW_REV_CHANGED			(1<<10)
 #define CONCORDD_INSTANCE_SERIAL_NUMBER_CHANGED		(1<<11)
-#define CONCORDD_INSTANCE_PROGRAMMING_MODE_CHANGED	(1<<12)
-#define CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED	(1<<13)
+#define CONCORDD_INSTANCE_AC_POWER_FAILURE_CHANGED	(1<<12)
 
 #define CONCORDD_MAX_PARTITIONS                 8
 #define CONCORDD_MAX_ZONES                 96

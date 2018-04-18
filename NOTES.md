@@ -13,3 +13,7 @@ Id | Code | Trigger              | ST  | Delay | Duration
 6  |01003 | Armed to Level 3     | NO  | 0s    | Sustained
 
 ST: Siren Tracking
+
+## Concord 4 undocumented key codes
+
+* 0x26: "long lights", will blink all lights on and off again and again
