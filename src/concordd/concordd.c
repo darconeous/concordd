@@ -1173,6 +1173,54 @@ concordd_set_light(concordd_instance_t self, int partitioni, int lighti, bool st
 }
 
 ge_rs232_status_t
+concordd_set_zone_bypass(concordd_instance_t self, int zonei, bool bypass, int useri, void (*finished)(void* context,ge_rs232_status_t status),void* context)
+{
+	if (self->refresh_pending) {
+        return GE_RS232_STATUS_WAIT;
+	}
+
+	concordd_zone_t zone = concordd_get_zone(self, zonei);
+
+    if (zone == NULL || !zone->active) {
+        return GE_RS232_STATUS_INVALID_ARGUMENT;
+    }
+
+	if (useri == -1) {
+		useri = GE_RS232_USER_SYSTEM;
+	}
+
+	concordd_partition_t partition = concordd_get_partition(self, zone->partition_id);
+    concordd_user_t user = concordd_get_user(self, useri);
+	char cmd[15];
+
+    if (partition == NULL || !partition->active) {
+        return GE_RS232_STATUS_INVALID_ARGUMENT;
+    }
+
+	if (partition->programming_mode) {
+        return GE_RS232_STATUS_ERROR;
+	}
+
+	if (((zone->zone_state&GE_RS232_ZONE_STATUS_BYPASSED)==GE_RS232_ZONE_STATUS_BYPASSED)==bypass) {
+		// Already in that state.
+		return GE_RS232_STATUS_ALREADY;
+	}
+
+	if (user == NULL || !user->active) {
+        return GE_RS232_STATUS_INVALID_ARGUMENT;
+	}
+
+	if (user->code_str[0] == 0) {
+		// We can't bypass/unbypass without a code
+        return GE_RS232_STATUS_ERROR;
+	}
+
+	snprintf(cmd, sizeof(cmd), "#%s%02d", user->code_str, zonei);
+
+	return concordd_press_keys(self, zone->partition_id, cmd, finished, context);
+}
+
+ge_rs232_status_t
 concordd_set_output(concordd_instance_t self, int outputi, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context)
 {
 	if (self->refresh_pending) {
@@ -1188,7 +1236,7 @@ concordd_set_output(concordd_instance_t self, int outputi, bool state, void (*fi
     }
 
     if (output->output_state == (uint8_t)state) {
-        return GE_RS232_STATUS_OK;
+        return GE_RS232_STATUS_ALREADY;
     }
 
 	concordd_partition_t partition = concordd_get_partition(self, 1);

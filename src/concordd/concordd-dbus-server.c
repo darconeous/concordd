@@ -1269,6 +1269,54 @@ concordd_dbus_handle_system_get_event_log(
 	return ret;
 }
 
+static DBusHandlerResult
+concordd_dbus_handle_zone_set_bypassed(
+    concordd_dbus_server_t self,
+    DBusConnection *connection,
+    DBusMessage *   message
+) {
+    DBusHandlerResult ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    const char* path = dbus_message_get_path(message);
+    const int zone_index = concordd_zone_index_from_dbus_path(path, self->instance);
+    struct concordd_dbus_callback_helper_s* helper;
+    int user_index = -1;
+    bool state = false;
+    ge_rs232_status_t status;
+
+    if (zone_index < 0) {
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+
+    dbus_message_get_args(
+        message, NULL,
+        DBUS_TYPE_BOOLEAN, &state,
+        DBUS_TYPE_INT32, &user_index,
+        DBUS_TYPE_INVALID
+    );
+
+    helper = concordd_dbus_callback_helper_new(self, message);
+
+    status = concordd_set_zone_bypass(
+        self->instance,
+        zone_index,
+        state,
+		user_index,
+        &concordd_dbus_callback_helper,
+        (void*)helper);
+
+    if (status < 0) {
+        if (status == GE_RS232_STATUS_ALREADY) {
+            status = GE_RS232_STATUS_OK;
+        }
+        concordd_dbus_callback_helper((void*)helper, status);
+    }
+
+    return DBUS_HANDLER_RESULT_HANDLED;
+
+
+	return ret;
+}
+
 void
 concordd_dbus_system_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, int changed)
 {
@@ -1942,6 +1990,11 @@ dbus_message_handler(
             return concordd_dbus_handle_light_set_value(self, connection, message);
         }
 
+    } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,
+                                    CONCORDD_DBUS_CMD_SET_BYPASSED)) {
+        if (concordd_dbus_path_is_zone(path)) {
+            return concordd_dbus_handle_zone_set_bypassed(self, connection, message);
+		}
     } else if (dbus_message_is_method_call(message, CONCORDD_DBUS_INTERFACE,
                                     CONCORDD_DBUS_CMD_GET_INFO)) {
         if (concordd_dbus_path_is_output(path)) {

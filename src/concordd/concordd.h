@@ -287,6 +287,7 @@ ge_rs232_status_t concordd_handle_frame(concordd_instance_t self, const uint8_t*
 ge_rs232_status_t concordd_set_light(concordd_instance_t self, int partitioni, int light, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context);
 ge_rs232_status_t concordd_set_output(concordd_instance_t self, int output, bool state, void (*finished)(void* context,ge_rs232_status_t status),void* context);
 ge_rs232_status_t concordd_set_arm_level(concordd_instance_t self, int partition, int arm_level, void (*finished)(void* context,ge_rs232_status_t status),void* context);
+ge_rs232_status_t concordd_set_zone_bypass(concordd_instance_t self, int zonei, bool bypass, int useri, void (*finished)(void* context,ge_rs232_status_t status),void* context);
 
 int concordd_get_partition_index(concordd_instance_t self, concordd_partition_t partition);
 concordd_partition_t concordd_get_partition(concordd_instance_t self, int i);
