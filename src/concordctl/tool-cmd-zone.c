@@ -41,6 +41,9 @@ static const arg_list_item_t zone_option_list[] = {
     {'h', "help", NULL, "Print Help"},
     {'t', "timeout", "ms", "Set timeout period"},
     {'a', "all", NULL, "Print all zones from all partitions"},
+    {'b', "bypass", NULL, "Bypass zone(s)"},
+    {'B', "unbypass", NULL, "Unbypass zone(s)"},
+    {'u', "user", "user-id", "User id to assume for bypass/unbypass"},
     {'r', NULL, NULL, "Print out raw structures"},
     {0}
 };
@@ -265,6 +268,74 @@ bail:
     return ret;
 }
 
+static int
+zone_bypass(DBusConnection *connection, int timeout, int zoneId, bool state, int userId, DBusError *error)
+{
+	int ret = ERRORCODE_UNKNOWN;
+    DBusMessage *message = NULL;
+    DBusMessage *reply = NULL;
+    char path[DBUS_MAXIMUM_NAME_LENGTH+1];
+    char interface_dbus_name[DBUS_MAXIMUM_NAME_LENGTH+1];
+	dbus_bool_t state_d = state;
+
+    snprintf(
+        path,
+        sizeof(path),
+        "%s%d",
+        CONCORDD_DBUS_PATH_ZONE,
+        zoneId
+    );
+
+    message = dbus_message_new_method_call(
+        CONCORDD_DBUS_NAME,
+        path,
+        CONCORDD_DBUS_INTERFACE,
+        CONCORDD_DBUS_CMD_SET_BYPASSED
+    );
+
+	dbus_message_append_args(
+        message,
+        DBUS_TYPE_BOOLEAN, &state_d,
+		DBUS_TYPE_INT32, &userId,
+        DBUS_TYPE_INVALID
+    );
+
+    ret = ERRORCODE_TIMEOUT;
+
+    reply = dbus_connection_send_with_reply_and_block(
+        connection,
+        message,
+        timeout,
+        error
+    );
+
+    require(reply != NULL, bail);
+
+    dbus_message_get_args(
+        reply,
+        error,
+        DBUS_TYPE_INT32, &ret,
+        DBUS_TYPE_INVALID
+    );
+
+    if (ret) {
+        fprintf(stderr, "zone_bypass: failed with error %d. %s\n", ret, concordd_status_to_cstr(ret));
+        goto bail;
+    }
+
+bail:
+
+    if (message) {
+        dbus_message_unref(message);
+    }
+
+	if (reply) {
+        dbus_message_unref(reply);
+    }
+
+    return ret;
+}
+
 int
 tool_cmd_zone(int argc, char *argv[])
 {
@@ -277,6 +348,12 @@ tool_cmd_zone(int argc, char *argv[])
     DBusConnection *connection = NULL;
 	DBusMessageIter iter;
 	int style = STYLE_TABLE;
+	int userId = -1;
+	enum {
+		ACTION_GET_INFO,
+		ACTION_BYPASS,
+		ACTION_UNBYPASS
+	} action = ACTION_GET_INFO;
 
     DBusError error;
 
@@ -289,6 +366,9 @@ tool_cmd_zone(int argc, char *argv[])
             {"help", no_argument, 0, 'h'},
             {"all", no_argument, 0, 'a'},
             {"timeout", required_argument, 0, 't'},
+            {"bypass", no_argument, 0, 'b'},
+            {"unbypass", no_argument, 0, 'B'},
+            {"user", required_argument, 0, 'u'},
             {"raw", no_argument, 0, 'r'},
             {0, 0, 0, 0}
         };
@@ -296,7 +376,7 @@ tool_cmd_zone(int argc, char *argv[])
         int option_index = 0;
         int c;
 
-        c = getopt_long(argc, argv, "rhat:", long_options, &option_index);
+        c = getopt_long(argc, argv, "rhaBbu:t:", long_options, &option_index);
 
         if (c == -1) {
             break;
@@ -308,6 +388,18 @@ tool_cmd_zone(int argc, char *argv[])
 						zone_cmd_syntax);
             ret = ERRORCODE_HELP;
             goto bail;
+
+		case 'b':
+			action = ACTION_BYPASS;
+			break;
+
+		case 'B':
+			action = ACTION_UNBYPASS;
+			break;
+
+		case 'u':
+            userId = strtol(optarg, NULL, 0);
+			break;
 
 		case 'a':
 			all_zones = true;
@@ -332,52 +424,67 @@ tool_cmd_zone(int argc, char *argv[])
     }
 
     if (connection != NULL) {
-		if (optind < argc) {
+		if (action == ACTION_GET_INFO) {
+			if (optind < argc) {
+				ret = 0;
+				for (;optind < argc; optind++) {
+					int zoneId = atoi(argv[optind]);
+					status = get_zone_info(connection, timeout, zoneId, &message, &iter, &error);
+					if (status != 0) {
+						ret = -1;
+						fprintf(stderr, "%s: zone-%d error: %s\n", argv[0], zoneId, error.message);
+						dbus_error_free(&error);
+						dbus_error_init(&error);
+						continue;
+					}
+					status = dump_zone_info(stdout, &iter, style);
+					if (message) {
+						dbus_message_unref(message);
+						message = NULL;
+					}
+					if (status != 0){
+						fprintf(stderr, "%s: zone-%d error printing zone\n", argv[0], zoneId);
+						break;
+					}
+					zone_count++;
+				}
+			} else {
+				ret = 0;
+				int zoneId;
+				for (zoneId = 0; zoneId < 96; zoneId++) {
+					status = get_zone_info(connection, timeout, zoneId, &message, &iter, &error);
+					if (status != 0) {
+						dbus_error_free(&error);
+						dbus_error_init(&error);
+						continue;
+					}
+					// TODO: Check to see if this is in our partition or not, unless all_zones is true
+					status = dump_zone_info(stdout, &iter, style);
+					if (message) {
+						dbus_message_unref(message);
+						message = NULL;
+					}
+					if (status != 0){
+						fprintf(stderr, "%s: zone-%d error printing zone\n", argv[0], zoneId);
+						break;
+					}
+					zone_count++;
+				}
+				fprintf(stderr, "%d zones total.\n", zone_count);
+			}
+		} else if ((action == ACTION_BYPASS) || (action == ACTION_UNBYPASS)) {
 			ret = 0;
 			for (;optind < argc; optind++) {
 				int zoneId = atoi(argv[optind]);
-				status = get_zone_info(connection, timeout, zoneId, &message, &iter, &error);
+				status = zone_bypass(connection, timeout, zoneId, action == ACTION_BYPASS, userId, &error);
 				if (status != 0) {
 					ret = -1;
 					fprintf(stderr, "%s: zone-%d error: %s\n", argv[0], zoneId, error.message);
 					dbus_error_free(&error);
-			        dbus_error_init(&error);
+					dbus_error_init(&error);
 					continue;
 				}
-				status = dump_zone_info(stdout, &iter, style);
-				if (message) {
-					dbus_message_unref(message);
-					message = NULL;
-				}
-				if (status != 0){
-					fprintf(stderr, "%s: zone-%d error printing zone\n", argv[0], zoneId);
-					break;
-				}
-				zone_count++;
 			}
-		} else {
-			ret = 0;
-			int zoneId;
-			for (zoneId = 0; zoneId < 96; zoneId++) {
-				status = get_zone_info(connection, timeout, zoneId, &message, &iter, &error);
-				if (status != 0) {
-					dbus_error_free(&error);
-			        dbus_error_init(&error);
-					continue;
-				}
-				// TODO: Check to see if this is in our partition or not, unless all_zones is true
-				status = dump_zone_info(stdout, &iter, style);
-				if (message) {
-					dbus_message_unref(message);
-					message = NULL;
-				}
-				if (status != 0){
-					fprintf(stderr, "%s: zone-%d error printing zone\n", argv[0], zoneId);
-					break;
-				}
-				zone_count++;
-			}
-			fprintf(stderr, "%d zones total.\n", zone_count);
 		}
 	} else {
 		ret = -1;
