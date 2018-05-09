@@ -195,6 +195,28 @@ concordd_equipment_refresh(concordd_instance_t self, void (*finished)(void* cont
 	self->refresh_pending = true;
 	self->bus_device_count = 0;
     // TODO: Invalidate all alarm/trouble events (but not log)
+	int i;
+
+	// Deactivate all zones.
+	for (i = 0; i < sizeof(self->zone)/sizeof(self->zone[0]); ++i) {
+		self->zone[i].active = false;
+	}
+
+	// Deactivate all partitions.
+	for (i = 0; i < sizeof(self->partition)/sizeof(self->partition[0]); ++i) {
+		self->partition[i].active = false;
+	}
+
+	// Deactivate all outputs.
+	for (i = 0; i < sizeof(self->output)/sizeof(self->output[0]); ++i) {
+		self->output[i].active = false;
+	}
+
+	// Deactivate all bus devices.
+	for (i = 0; i < sizeof(self->bus_device)/sizeof(self->bus_device[0]); ++i) {
+		self->bus_device[i].active = false;
+	}
+
 	return ge_queue_message(&self->ge_queue, refresh_equipment_msg, sizeof(refresh_equipment_msg), finished, context);
 }
 
@@ -818,7 +840,7 @@ concordd_handle_equip_list_superbus_dev_data(concordd_instance_t self, const uin
 
     syslog(
 		fault?LOG_ERR:LOG_INFO,
-		"[EQUIP_LIST_SUPERBUS_DEV_DATA] PN:%d DEVICEID:%d(0x%06X) FAULT:%d",
+		"[EQUIP_LIST_SUPERBUS_DEV_DATA] PN:%d DEVICEID:%08d(0x%06X) FAULT:%d",
 		partitioni,
 		deviceid,deviceid,
 		fault,
@@ -874,7 +896,7 @@ concordd_handle_equip_list_superbus_cap_data(concordd_instance_t self, const uin
 
     syslog(
 		LOG_INFO,
-		"[EQUIP_LIST_SUPERBUS_CAP_DATA] DEVICEID:%d(0x%06X) CN:0x%02X(%s) CD:%d",
+		"[EQUIP_LIST_SUPERBUS_CAP_DATA] DEVICEID:%08d(0x%06X) CN:0x%02X(%s) CD:%d",
 		deviceid,deviceid,
 		cap,
 		cap_string,
