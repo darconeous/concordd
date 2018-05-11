@@ -64,6 +64,15 @@ concordd_instance_info_changed(concordd_instance_t self, int changed)
 }
 
 void
+concordd_zone_keyfob_button_pressed(concordd_instance_t self, concordd_zone_t zone, int button)
+{
+    if (zone != NULL && self->keyfob_button_pressed_func != NULL) {
+        (*self->keyfob_button_pressed_func)(self->context, self, zone, button);
+    }
+}
+
+
+void
 concordd_partition_info_changed(concordd_instance_t self, concordd_partition_t partition, int changed)
 {
     if (self->partition_info_changed_func != NULL) {
@@ -475,9 +484,9 @@ concordd_handle_alarm(concordd_instance_t self, uint8_t partitioni, uint8_t st, 
 static ge_rs232_status_t
 concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, int frame_len)
 {
-    // TODO: Writeme!
     int partitioni = frame_bytes[2];
     concordd_partition_t partition = NULL;
+	concordd_zone_t zone = NULL;
     partition = concordd_get_partition(self, partitioni);
 
     switch (frame_bytes[1]) {
@@ -535,7 +544,16 @@ concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, in
         }
         break;
     case GE_RS232_PTA_SUBCMD2_KEYFOB:
-        syslog(LOG_NOTICE, "[KEYFOB] PN:%d ZONE:%d KC:%d", partitioni, frame_bytes[5], frame_bytes[6]);
+		zone = concordd_get_zone(self, frame_bytes[5]);
+
+		if ( (zone != NULL)
+		  && (zone->last_kc != frame_bytes[6] || (frame_bytes[6] <= 3) || (time(NULL) != zone->last_kc_changed_at))
+		) {
+			zone->last_kc = frame_bytes[6];
+			zone->last_kc_changed_at = time(NULL);
+			concordd_zone_keyfob_button_pressed(self, zone, frame_bytes[6]);
+			syslog(LOG_NOTICE, "[KEYFOB] PN:%d ZONE:%d KC:%d", partitioni, frame_bytes[5], frame_bytes[6]);
+		}
         break;
     default:
         syslog(LOG_WARNING, "[UNHANDLED_SUBCMD2_%02X]",frame_bytes[1]);
