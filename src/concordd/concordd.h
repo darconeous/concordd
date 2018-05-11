@@ -118,6 +118,9 @@ struct concordd_zone_s {
 
 	uint8_t zone_state;
 
+	uint8_t last_kc;
+	time_t last_kc_changed_at;
+
 	time_t last_tripped_at;
 	time_t last_changed_at;
 
@@ -269,7 +272,7 @@ struct concordd_instance_s {
 	void* context;
     ge_rs232_send_bytes_func_t send_bytes_func;
 	void (*instance_info_changed_func)(void* context, concordd_instance_t instance, int changed);
-	void (*keyfob_button_pressed_func)(void* context, concordd_instance_t instance, int button);
+	void (*keyfob_button_pressed_func)(void* context, concordd_instance_t instance, concordd_zone_t zone, int button);
 	void (*partition_info_changed_func)(void* context, concordd_instance_t instance, concordd_partition_t partition, int changed);
 	void (*siren_sync_func)(void* context, concordd_instance_t instance);
 	void (*zone_info_changed_func)(void* context, concordd_instance_t instance, concordd_zone_t zone, int changed);

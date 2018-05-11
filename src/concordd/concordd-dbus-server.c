@@ -1403,7 +1403,7 @@ bail:
 }
 
 void
-concordd_dbus_keyfob_button_pressed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_partition_t partition, int button)
+concordd_dbus_keyfob_button_pressed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_zone_t zone, int button)
 {
 }
 
