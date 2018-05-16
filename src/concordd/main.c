@@ -117,7 +117,6 @@ static const char* gOutputChangedCommand;
 static const char* gZoneChangedCommand;
 static const char* gAcPowerFailureCommand;
 static const char* gAcPowerRestoredCommand;
-static const char* gKeyfobButtonPressedCommand;
 
 #if HAVE_PWD_H
 static const char* gPrivDropToUser = CONCORDD_DEFAULT_PRIV_DROP_USER;
@@ -313,13 +312,6 @@ set_config_param(
             gAcPowerRestoredCommand = strdup(value);
         }
         ret = 0;
-	} else if (strcaseequal(key, kCONCORDDConfig_KeyfobButtonPressedCommand)) {
-        if (value[0] == 0) {
-            gKeyfobButtonPressedCommand = NULL;
-        } else {
-            gKeyfobButtonPressedCommand = strdup(value);
-        }
-        ret = 0;
 	} else if (strcaseequal(key, kCONCORDDConfig_PIDFile)) {
 		if (gPIDFilename)
 			goto bail;
@@ -476,47 +468,6 @@ concordd_partition_info_changed_func(void* context, concordd_instance_t instance
 }
 
 void
-concordd_zone_keyfob_button_pressed_func(void* context, concordd_instance_t instance, concordd_zone_t zone, int button)
-{
-    struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
-
-	// Pass-thru to D-Bus first.
-	concordd_dbus_keyfob_button_pressed_func(&concordd_state->dbus_server, instance, zone, button);
-
-    // Now handle via system.
-    int pid = fork();
-    if (pid == -1) {
-        syslog(LOG_ERR, "concordd_zone_keyfob_button_pressed_func: fork() failed: %s", strerror(errno));
-
-    } else if (pid == 0) {
-        char value[64];
-
-        setenv("CONCORDD_TYPE", "KEYFOB", 1);
-
-        snprintf(value, sizeof(value), "%d", zone->partition_id);
-        setenv("CONCORDD_PARTITION_ID", value, 1);
-
-        snprintf(value, sizeof(value), "%d", concordd_get_zone_index(instance, zone));
-        setenv("CONCORDD_ZONE_ID", value, 1);
-
-		setenv("CONCORDD_ZONE_NAME", ge_text_to_ascii_one_line(zone->encoded_name, zone->encoded_name_len), 1);
-
-		snprintf(value, sizeof(value), "%d", zone->type);
-        setenv("CONCORDD_ZONE_TYPE", value, 1);
-
-		snprintf(value, sizeof(value), "%d", zone->group);
-        setenv("CONCORDD_ZONE_GROUP", value, 1);
-
-		snprintf(value, sizeof(value), "%d", button);
-        setenv("CONCORDD_KEYFOB_BUTTON", value, 1);
-
-        _exit(system(gKeyfobButtonPressedCommand));
-    } else {
-        syslog(LOG_DEBUG, "concordd_zone_info_changed_func: forked system hook");
-	}
-}
-
-void
 concordd_zone_info_changed_func(void* context, concordd_instance_t instance, concordd_zone_t zone, int changed)
 {
     struct concordd_state_s *concordd_state = (struct concordd_state_s *)context;
@@ -528,7 +479,7 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
         return;
     }
 
-    if (0 == (changed & (CONCORDD_ZONE_TRIPPED_CHANGED|CONCORDD_ZONE_ALARM_CHANGED|CONCORDD_ZONE_TROUBLE_CHANGED|CONCORDD_ZONE_FAULT_CHANGED))) {
+    if (0 == (changed & (CONCORDD_ZONE_TRIPPED_CHANGED|CONCORDD_ZONE_ALARM_CHANGED|CONCORDD_ZONE_TROUBLE_CHANGED|CONCORDD_ZONE_FAULT_CHANGED|CONCORDD_ZONE_LAST_KC_CHANGED))) {
         // We only care about when the zone state has changed.
         return;
     }
@@ -566,6 +517,11 @@ concordd_zone_info_changed_func(void* context, concordd_instance_t instance, con
 					: "0",
 				1
 			);
+		}
+
+		if ((changed&CONCORDD_ZONE_LAST_KC_CHANGED) == CONCORDD_ZONE_LAST_KC_CHANGED) {
+			snprintf(value, sizeof(value), "%d", zone->last_kc);
+	        setenv("CONCORDD_KEYFOB_BUTTON", value, 1);
 		}
 
 		if ((zone->zone_state&GE_RS232_ZONE_STATUS_ALARM) == GE_RS232_ZONE_STATUS_ALARM) {
@@ -1092,7 +1048,6 @@ main(int argc, char * argv[])
 	concordd_state.instance.instance_info_changed_func = &concordd_instance_info_changed_func;
 	concordd_state.instance.partition_info_changed_func = &concordd_partition_info_changed_func;
 	concordd_state.instance.siren_sync_func = &concordd_siren_sync_func;
-	concordd_state.instance.keyfob_button_pressed_func = &concordd_zone_keyfob_button_pressed_func;
 
 	// ========================================================================
 	// MAIN LOOP

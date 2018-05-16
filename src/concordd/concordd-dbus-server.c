@@ -1018,6 +1018,18 @@ concordd_dbus_handle_zone_get_info(
                       DBUS_TYPE_BOOLEAN,
                       &b);
 
+	i = zone->last_kc;
+	append_dict_entry(&dict,
+					  CONCORDD_DBUS_INFO_LAST_KC,
+					  DBUS_TYPE_INT32,
+					  &i);
+
+	i = (int32_t)zone->last_kc_changed_at;
+	append_dict_entry(&dict,
+					  CONCORDD_DBUS_INFO_LAST_KC_CHANGED_AT,
+					  DBUS_TYPE_INT32,
+					  &i);
+
     dbus_message_iter_close_container(&iter, &dict);
 
     dbus_connection_send(self->dbus_connection, reply, NULL);
@@ -1403,11 +1415,6 @@ bail:
 }
 
 void
-concordd_dbus_keyfob_button_pressed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_zone_t zone, int button)
-{
-}
-
-void
 concordd_dbus_partition_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_partition_t partition, int changed)
 {
     char path[120] = {0};
@@ -1684,6 +1691,22 @@ concordd_dbus_zone_info_changed_func(concordd_dbus_server_t self, concordd_insta
 						  CONCORDD_DBUS_INFO_IS_TRIPPED,
 						  DBUS_TYPE_BOOLEAN,
 						  &b);
+	}
+
+	if (changed & CONCORDD_ZONE_LAST_KC_CHANGED) {
+		i = zone->last_kc;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_KC,
+						  DBUS_TYPE_INT32,
+						  &i);
+	}
+
+	if (changed & CONCORDD_ZONE_LAST_KC_CHANGED_AT_CHANGED) {
+		i = (int32_t)zone->last_kc_changed_at;
+		append_dict_entry(&dict,
+						  CONCORDD_DBUS_INFO_LAST_KC_CHANGED_AT,
+						  DBUS_TYPE_INT32,
+						  &i);
 	}
 
 	if (changed & CONCORDD_ZONE_FAULT_CHANGED) {

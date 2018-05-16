@@ -42,7 +42,6 @@ int concordd_dbus_server_update_fd_set(concordd_dbus_server_t self, fd_set *read
 
 void concordd_dbus_event_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_event_t event);
 void concordd_dbus_system_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, int changed);
-void concordd_dbus_keyfob_button_pressed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_zone_t zone, int button);
 void concordd_dbus_partition_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_partition_t partition, int changed);
 void concordd_dbus_siren_sync_func(concordd_dbus_server_t self, concordd_instance_t instance);
 void concordd_dbus_zone_info_changed_func(concordd_dbus_server_t self, concordd_instance_t instance, concordd_zone_t zone, int changed);

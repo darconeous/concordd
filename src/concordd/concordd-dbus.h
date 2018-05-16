@@ -54,7 +54,6 @@
 
 #define CONCORDD_DBUS_SIGNAL_RECV_RAW_FRAME     "recv_raw_frame"
 #define CONCORDD_DBUS_SIGNAL_CHANGED            "changed"
-#define CONCORDD_DBUS_SIGNAL_KEYFOB_BUTTON      "keyfob_button"
 #define CONCORDD_DBUS_SIGNAL_SIREN_SYNC         "siren_sync"
 #define CONCORDD_DBUS_SIGNAL_ALARM              "alarm"
 #define CONCORDD_DBUS_SIGNAL_TROUBLE            "trouble"
@@ -112,6 +111,8 @@
 #define CONCORDD_DBUS_INFO_IS_TROUBLE     "isTrouble"  // bool
 #define CONCORDD_DBUS_INFO_IS_ALARM     "isAlarm"  // bool
 #define CONCORDD_DBUS_INFO_IS_FAULT     "isFault"  // bool
+#define CONCORDD_DBUS_INFO_LAST_KC_CHANGED_AT "lastKcChangedAt"
+#define CONCORDD_DBUS_INFO_LAST_KC            "lastKc"
 
 #define CONCORDD_DBUS_INFO_VALUE     "value"
 
