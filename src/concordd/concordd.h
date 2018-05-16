@@ -110,6 +110,8 @@ const char* concordd_zone_group_get_name(int group);
 #define CONCORDD_ZONE_TYPE_CHANGED				(1<<16)
 #define CONCORDD_ZONE_GROUP_CHANGED				(1<<17)
 #define CONCORDD_ZONE_LAST_TRIPPED_AT_CHANGED	(1<<18)
+#define CONCORDD_ZONE_LAST_KC_CHANGED            (1<<19)
+#define CONCORDD_ZONE_LAST_KC_CHANGED_AT_CHANGED (1<<20)
 struct concordd_zone_s {
 	bool active;
 	uint8_t partition_id;
@@ -272,7 +274,6 @@ struct concordd_instance_s {
 	void* context;
     ge_rs232_send_bytes_func_t send_bytes_func;
 	void (*instance_info_changed_func)(void* context, concordd_instance_t instance, int changed);
-	void (*keyfob_button_pressed_func)(void* context, concordd_instance_t instance, concordd_zone_t zone, int button);
 	void (*partition_info_changed_func)(void* context, concordd_instance_t instance, concordd_partition_t partition, int changed);
 	void (*siren_sync_func)(void* context, concordd_instance_t instance);
 	void (*zone_info_changed_func)(void* context, concordd_instance_t instance, concordd_zone_t zone, int changed);

@@ -64,15 +64,6 @@ concordd_instance_info_changed(concordd_instance_t self, int changed)
 }
 
 void
-concordd_zone_keyfob_button_pressed(concordd_instance_t self, concordd_zone_t zone, int button)
-{
-    if (zone != NULL && self->keyfob_button_pressed_func != NULL) {
-        (*self->keyfob_button_pressed_func)(self->context, self, zone, button);
-    }
-}
-
-
-void
 concordd_partition_info_changed(concordd_instance_t self, concordd_partition_t partition, int changed)
 {
     if (self->partition_info_changed_func != NULL) {
@@ -550,9 +541,10 @@ concordd_handle_subcmd2(concordd_instance_t self, const uint8_t* frame_bytes, in
 		  && (zone->last_kc != frame_bytes[6] || (frame_bytes[6] <= 3) || (time(NULL) != zone->last_kc_changed_at))
 		) {
 			zone->last_kc = frame_bytes[6];
-			zone->last_kc_changed_at = time(NULL);
-			concordd_zone_keyfob_button_pressed(self, zone, frame_bytes[6]);
+			zone->last_kc_changed_at = zone->last_changed_at = time(NULL);
+			zone->active = true;
 			syslog(LOG_NOTICE, "[KEYFOB] PN:%d ZONE:%d KC:%d", partitioni, frame_bytes[5], frame_bytes[6]);
+			concordd_zone_info_changed(self, zone, CONCORDD_ZONE_LAST_KC_CHANGED|CONCORDD_ZONE_LAST_KC_CHANGED_AT_CHANGED);
 		}
         break;
     default:

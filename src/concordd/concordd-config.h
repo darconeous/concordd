@@ -37,6 +37,5 @@
 #define kCONCORDDConfig_ZoneChangedCommand "ZoneChangedCommand"
 #define kCONCORDDConfig_AcPowerFailureCommand "AcPowerFailureCommand"
 #define kCONCORDDConfig_AcPowerRestoredCommand "AcPowerRestoredCommand"
-#define kCONCORDDConfig_KeyfobButtonPressedCommand "KeyfobButtonPressedCommand"
 
 #endif
