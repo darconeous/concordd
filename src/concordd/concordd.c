@@ -205,6 +205,8 @@ concordd_equipment_refresh(concordd_instance_t self, void (*finished)(void* cont
 	// Deactivate all partitions.
 	for (i = 0; i < sizeof(self->partition)/sizeof(self->partition[0]); ++i) {
 		self->partition[i].active = false;
+		self->partition[i].entry_delay_active = false;
+		self->partition[i].exit_delay_active = false;
 	}
 
 	// Deactivate all outputs.
@@ -230,7 +232,7 @@ concordd_dynamic_data_refresh(concordd_instance_t self, void (*finished)(void* c
 ge_rs232_status_t
 concordd_refresh(concordd_instance_t self, void (*finished)(void* context,ge_rs232_status_t status), void* context)
 {
-    return concordd_equipment_refresh(self, NULL, NULL);
+    return concordd_equipment_refresh(self, finished, context);
 //    return concordd_dynamic_data_refresh(self, finished, context);
 }
 
@@ -661,6 +663,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			partition->arm_level = frame_bytes[6];
 			partition->arm_level_user = (frame_bytes[4]<<8)+(frame_bytes[5]);
 			partition->arm_level_timestamp = time(NULL);
+			partition->entry_delay_active = false;
             syslog(LOG_NOTICE,"[ARM_LEVEL] PN:%d LEVEL:%d USER:%s",
                 partitioni,
                 partition->arm_level,
@@ -695,7 +698,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 			frame_bytes[4]&0x3,
 			(frame_bytes[5]<<8)+frame_bytes[6]
 		);
-/*
+
 		concordd_partition_t partition = concordd_get_partition(self, frame_bytes[2]);
 		if(partition) {
 			bool new_value = !!(frame_bytes[4]&(1<<7));
@@ -705,7 +708,7 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 				partition->entry_delay_active = new_value;
 			}
 		}
-*/
+
 		break;
 
 	case GE_RS232_PTA_SUBCMD_FEATURE_STATE:
@@ -1289,7 +1292,14 @@ concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, 
         return GE_RS232_STATUS_INVALID_ARGUMENT;
     }
 
-    if (partition->arm_level != arm_level) {
+	/* If the arm level is different,
+	 * OR the siren is wailing,
+	 * OR an entry delay is active...
+	 */
+    if ( (partition->arm_level != arm_level)
+	  || ((partition->siren_repeat == 0) && (partition->siren_started_at != 0))
+	  || partition->entry_delay_active
+	) {
 		if (partition->programming_mode) {
 			return GE_RS232_STATUS_ERROR;
 		}
@@ -1300,7 +1310,6 @@ concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, 
             case 2:
                 return concordd_press_keys(self, partitioni, "[28]", finished, context);
             case 3:
-                // [2B] = arm no delay
                 return concordd_press_keys(self, partitioni, "[27]", finished, context);
             default:
                 return GE_RS232_STATUS_INVALID_ARGUMENT;

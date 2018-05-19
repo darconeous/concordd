@@ -51,6 +51,48 @@ static const arg_list_item_t zone_option_list[] = {
 static bool did_write_table_header = false;
 
 static int
+get_zone_partition_from_iter(DBusMessageIter *iter) {
+	DBusMessageIter sub_iter;
+	int partId = -1;
+
+	require(dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_ARRAY, bail);
+
+	dbus_message_iter_recurse(iter, &sub_iter);
+
+	for (;
+		 dbus_message_iter_get_arg_type(&sub_iter) != DBUS_TYPE_INVALID;
+		 dbus_message_iter_next(&sub_iter)
+	) {
+		DBusMessageIter dict_iter;
+		DBusMessageIter val_iter;
+		const char* key = NULL;
+
+		require(dbus_message_iter_get_arg_type(&sub_iter) == DBUS_TYPE_DICT_ENTRY, bail);
+
+		dbus_message_iter_recurse(&sub_iter, &dict_iter);
+
+		require(dbus_message_iter_get_arg_type(&dict_iter) == DBUS_TYPE_STRING, bail);
+
+		dbus_message_iter_get_basic(&dict_iter, &key);
+
+		dbus_message_iter_next(&dict_iter);
+
+		require(dbus_message_iter_get_arg_type(&dict_iter) == DBUS_TYPE_VARIANT, bail);
+
+		dbus_message_iter_recurse(&dict_iter, &val_iter);
+
+		if (0 == strcmp(key, CONCORDD_DBUS_INFO_PARTITION_ID)) {
+			require(dbus_message_iter_get_arg_type(&val_iter) == DBUS_TYPE_INT32, bail);
+			dbus_message_iter_get_basic(&val_iter, &partId);
+			break;
+		}
+	}
+
+bail:
+	return partId;
+}
+
+static int
 dump_zone_info_table(FILE* file, DBusMessageIter *iter)
 {
 	int ret = -1;
@@ -458,8 +500,10 @@ tool_cmd_zone(int argc, char *argv[])
 						dbus_error_init(&error);
 						continue;
 					}
-					// TODO: Check to see if this is in our partition or not, unless all_zones is true
-					status = dump_zone_info(stdout, &iter, style);
+					if (all_zones || get_zone_partition_from_iter(&iter) == gPartitionIndex) {
+						status = dump_zone_info(stdout, &iter, style);
+						zone_count++;
+					}
 					if (message) {
 						dbus_message_unref(message);
 						message = NULL;
@@ -468,7 +512,6 @@ tool_cmd_zone(int argc, char *argv[])
 						fprintf(stderr, "%s: zone-%d error printing zone\n", argv[0], zoneId);
 						break;
 					}
-					zone_count++;
 				}
 				fprintf(stderr, "%d zones total.\n", zone_count);
 			}

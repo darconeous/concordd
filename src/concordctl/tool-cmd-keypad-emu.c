@@ -83,8 +83,17 @@ signal_SIGWINCH(int sig)
 	gWindowResized = true;
 }
 
+static void exit_raw_termios() {
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &gPrevious);
+	if (gUseAnsi) {
+		fprintf(stdout, ANSI_SHOW_CURSOR "\n");
+		fflush(stdout);
+	}
+}
+
 static void enter_raw_termios() {
 	struct termios raw;
+	static bool did_setup_atexit = false;
 	tcgetattr(STDIN_FILENO, &raw);
 	tcgetattr(STDIN_FILENO, &gPrevious);
 	raw.c_lflag &= ~(ECHO|ICANON);
@@ -96,13 +105,9 @@ static void enter_raw_termios() {
 		fprintf(stdout, ANSI_SCP);
 		fflush(stdout);
 	}
-}
-
-static void exit_raw_termios() {
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &gPrevious);
-	if (gUseAnsi) {
-		fprintf(stdout, ANSI_SHOW_CURSOR "\n");
-		fflush(stdout);
+	if (!did_setup_atexit) {
+		did_setup_atexit = true;
+		atexit(&exit_raw_termios);
 	}
 }
 
@@ -113,7 +118,7 @@ char touchpad_sirenCadence[33];
 
 struct zone_data_s {
 	char name[200];
-	bool partitionId;
+	int partitionId;
 	bool isTripped;
 	bool isFault;
 	bool isAlarm;
@@ -708,6 +713,7 @@ int tool_cmd_keypad_emu(int argc, char *argv[])
 
 	interrupt_trap_begin();
 	enter_raw_termios();
+	touchpad_display_draw();
 
 	ret = 0;
 

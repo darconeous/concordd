@@ -218,6 +218,9 @@ struct concordd_partition_s {
 	uint8_t feature_state;
 	bool programming_mode;
 
+	bool entry_delay_active;
+	bool exit_delay_active;
+
     struct concordd_event_s alarm_events[CONCORDD_ALARM_TYPE_MAX];
     struct concordd_event_s trouble_events[CONCORDD_TROUBLE_TYPE_MAX];
 
