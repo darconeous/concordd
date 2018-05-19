@@ -134,6 +134,8 @@ am_concordctl_OBJECTS = concordctl-concordctl.$(OBJEXT) \
 	concordctl-tool-cmd-light.$(OBJEXT) \
 	concordctl-tool-cmd-output.$(OBJEXT) \
 	concordctl-tool-cmd-system.$(OBJEXT) \
+	concordctl-tool-cmd-panic.$(OBJEXT) \
+	concordctl-tool-cmd-refresh.$(OBJEXT) \
 	concordctl-tool-cmd-partition-info.$(OBJEXT) \
 	concordctl-version.$(OBJEXT)
 concordctl_OBJECTS = $(am_concordctl_OBJECTS)
@@ -356,8 +358,9 @@ concordctl_SOURCES = concordctl.c concordctl-utils.c \
 	tool-cmd-keypad.h tool-cmd-keypad-emu.c tool-cmd-zone.c \
 	tool-cmd-zone.h tool-cmd-light.c tool-cmd-light.h \
 	tool-cmd-output.c tool-cmd-output.h tool-cmd-system.c \
-	tool-cmd-system.h tool-cmd-partition-info.c \
-	tool-cmd-partition-info.h $(NULL) \
+	tool-cmd-system.h tool-cmd-panic.c tool-cmd-panic.h \
+	tool-cmd-refresh.c tool-cmd-refresh.h \
+	tool-cmd-partition-info.c tool-cmd-partition-info.h $(NULL) \
 	$(top_builddir)/$(subdir)/version.c
 concordctl_LDADD = \
 	$(DBUS_LIBS) \
@@ -479,7 +482,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-light.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-output.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-panic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-partition-info.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-refresh.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-system.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-tool-cmd-zone.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/concordctl-version.Po@am__quote@
@@ -672,6 +677,34 @@ concordctl-tool-cmd-system.obj: tool-cmd-system.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-system.c' object='concordctl-tool-cmd-system.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-system.obj `if test -f 'tool-cmd-system.c'; then $(CYGPATH_W) 'tool-cmd-system.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-system.c'; fi`
+
+concordctl-tool-cmd-panic.o: tool-cmd-panic.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-panic.o -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-panic.Tpo -c -o concordctl-tool-cmd-panic.o `test -f 'tool-cmd-panic.c' || echo '$(srcdir)/'`tool-cmd-panic.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/concordctl-tool-cmd-panic.Tpo $(DEPDIR)/concordctl-tool-cmd-panic.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-panic.c' object='concordctl-tool-cmd-panic.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-panic.o `test -f 'tool-cmd-panic.c' || echo '$(srcdir)/'`tool-cmd-panic.c
+
+concordctl-tool-cmd-panic.obj: tool-cmd-panic.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-panic.obj -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-panic.Tpo -c -o concordctl-tool-cmd-panic.obj `if test -f 'tool-cmd-panic.c'; then $(CYGPATH_W) 'tool-cmd-panic.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-panic.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/concordctl-tool-cmd-panic.Tpo $(DEPDIR)/concordctl-tool-cmd-panic.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-panic.c' object='concordctl-tool-cmd-panic.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-panic.obj `if test -f 'tool-cmd-panic.c'; then $(CYGPATH_W) 'tool-cmd-panic.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-panic.c'; fi`
+
+concordctl-tool-cmd-refresh.o: tool-cmd-refresh.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-refresh.o -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-refresh.Tpo -c -o concordctl-tool-cmd-refresh.o `test -f 'tool-cmd-refresh.c' || echo '$(srcdir)/'`tool-cmd-refresh.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/concordctl-tool-cmd-refresh.Tpo $(DEPDIR)/concordctl-tool-cmd-refresh.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-refresh.c' object='concordctl-tool-cmd-refresh.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-refresh.o `test -f 'tool-cmd-refresh.c' || echo '$(srcdir)/'`tool-cmd-refresh.c
+
+concordctl-tool-cmd-refresh.obj: tool-cmd-refresh.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-refresh.obj -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-refresh.Tpo -c -o concordctl-tool-cmd-refresh.obj `if test -f 'tool-cmd-refresh.c'; then $(CYGPATH_W) 'tool-cmd-refresh.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-refresh.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/concordctl-tool-cmd-refresh.Tpo $(DEPDIR)/concordctl-tool-cmd-refresh.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tool-cmd-refresh.c' object='concordctl-tool-cmd-refresh.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o concordctl-tool-cmd-refresh.obj `if test -f 'tool-cmd-refresh.c'; then $(CYGPATH_W) 'tool-cmd-refresh.c'; else $(CYGPATH_W) '$(srcdir)/tool-cmd-refresh.c'; fi`
 
 concordctl-tool-cmd-partition-info.o: tool-cmd-partition-info.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(concordctl_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT concordctl-tool-cmd-partition-info.o -MD -MP -MF $(DEPDIR)/concordctl-tool-cmd-partition-info.Tpo -c -o concordctl-tool-cmd-partition-info.o `test -f 'tool-cmd-partition-info.c' || echo '$(srcdir)/'`tool-cmd-partition-info.c
