@@ -42,6 +42,8 @@ concordctl_SOURCES = \
     tool-cmd-light.c tool-cmd-light.h \
     tool-cmd-output.c tool-cmd-output.h \
     tool-cmd-system.c tool-cmd-system.h \
+    tool-cmd-panic.c tool-cmd-panic.h \
+    tool-cmd-refresh.c tool-cmd-refresh.h \
     tool-cmd-partition-info.c tool-cmd-partition-info.h \
 	$(NULL)
 

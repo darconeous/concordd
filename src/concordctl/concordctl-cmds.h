@@ -30,6 +30,8 @@
 #include "tool-cmd-keypad.h"
 #include "tool-cmd-system.h"
 #include "tool-cmd-partition-info.h"
+#include "tool-cmd-panic.h"
+#include "tool-cmd-refresh.h"
 
 #include "concordctl-utils.h"
 
@@ -54,6 +56,23 @@
 		&tool_cmd_arm \
 	}, \
     { "set-arm-level", "", &tool_cmd_arm, 1 }, \
+	{ \
+		"refresh", \
+		"Refresh alarm system state scoreboards", \
+		&tool_cmd_refresh \
+	}, \
+    { \
+        "panic", \
+        "Trigger a panic alarm of the specified type", \
+        &tool_cmd_panic \
+    }, \
+    { \
+        "keypad", \
+        "Emulate a touchpad on this terminal", \
+        &tool_cmd_keypad_emu \
+    }, \
+    { "keypad-emu", "", &tool_cmd_keypad_emu, 1, }, \
+    { "touchpad", "", &tool_cmd_keypad_emu, 1, }, \
     { \
         "keypad-input", \
         "Simulate button presses on the keypad", \
@@ -63,12 +82,8 @@
     { \
         "keypad-text", \
         "Print out the current text on the keypad", \
-        &tool_cmd_keypad_text \
-    }, \
-    { \
-        "keypad-emu", \
-        "Emulate a touchpad", \
-        &tool_cmd_keypad_emu \
+        &tool_cmd_keypad_text, \
+		1, \
     }, \
     { \
         "zone", \
