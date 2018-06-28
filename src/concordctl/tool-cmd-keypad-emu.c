@@ -42,11 +42,15 @@
 #include "concordd-dbus.h"
 #include <signal.h>
 
+#define ERRORCODE_NORMAL_QUIT		-23
+
 const char keypad_emu_cmd_syntax[] = "[args]";
 
 static const arg_list_item_t keypad_emu_option_list[] = {
     {'h', "help", NULL, "Print Help"},
     {'t', "timeout", "ms", "Set timeout period"},
+    {'F', "ansi", NULL, "Force full-screen ANSI mode"},
+    {'S', "single-line", NULL, "Force single-line mode"},
     {0}
 };
 
@@ -628,7 +632,7 @@ handle_keypresses(DBusConnection *connection, int timeout, DBusError *error)
 			}
 		} else if ((keys[0] == 'q') || (keys[0] == 'Q')) {
 			// Quit
-			ret = -2;
+			ret = ERRORCODE_NORMAL_QUIT;
 		} else if (keys[0] == '\n') {
 			ret = dispatch_keypress(connection, "#", timeout, error);
 		} else if ((keys[0] == '*') || (keys[0] == '#')) {
@@ -662,19 +666,27 @@ int tool_cmd_keypad_emu(int argc, char *argv[])
 		static struct option long_options[] = {
 			{"help", no_argument, 0, 'h'},
 			{"timeout", required_argument, 0, 't'},
+			{"ansi", no_argument, 0, 'F'},
+			{"single-line", no_argument, 0, 'S'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "ht:", long_options, &option_index);
+		c = getopt_long(argc, argv, "ht:FS", long_options, &option_index);
 
 		if (c == -1) {
 			break;
 		}
 
 		switch (c) {
+		case 'F':
+			gUseAnsi = true;
+			break;
+		case 'S':
+			gUseAnsi = false;
+			break;
 		case 'h':
 			print_arg_list_help(keypad_emu_option_list, argv[0],
 						keypad_emu_cmd_syntax);
@@ -725,6 +737,12 @@ int tool_cmd_keypad_emu(int argc, char *argv[])
 			touchpad_display_draw();
 		}
 	}
+
+	if (ret == ERRORCODE_NORMAL_QUIT) {
+		ret = 0;
+	}
+
+	fprintf(stdout, "\n");
 
 	dbus_bus_remove_match(connection, gDBusObjectManagerMatchString, &error);
 
