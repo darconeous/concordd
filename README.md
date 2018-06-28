@@ -32,103 +32,123 @@ hooks are available, as well as comments describing how to use them.
 If you are having trouble with concordd, you can [file an issue on
 github](https://github.com/darconeous/concordd/issues/new).
 
-## Getting, building, and installing via Git ##
+## Dependencies ##
 
-First:
+concordd depends on DBus and optionally libreadline. If you are
+on Raspbian, you can get both by doing this:
 
-	$ git clone git://github.com/darconeous/concordd.git
-	$ cd concordd
+    $ sudo apt-get install libdbus-1-dev libreadline-dev
 
-concordd depends on DBus and optionally libreadline. If you are on
-Raspbian, you can get both by doing this:
+## Getting the sources ##
 
-	$ sudo apt-get install libdbus-1-dev libreadline-dev
+Now that you've got your dependencies sorted out, you can get the
+source code in one of two ways:
 
-If you have all of the autoconf tools installed, you can run
-the bootstrap script to get the configure script up and running:
+### Getting the sources using Git ###
+
+Clone the repository and enter the directory:
+
+    $ git clone git://github.com/darconeous/concordd.git
+    $ cd concordd
+
+If you have all of the autoconf tools installed, you can run the
+bootstrap script to get the configure script up and running:
 
     $ ./bootstrap.sh
 
-Alternatively, if you don't have autoconf installed or running
-that script simply didn't work, you can skip it by doing
-the following instead:
+Alternatively, if you don't have autoconf installed or running that
+script simply didn't work, you can skip it by doing the following
+instead:
 
-	$ git archive origin/autoconf/master | tar xvm
-	  # Next line is a work-around for timestamp problems
-	$ touch aclocal.m4 && touch configure && touch `find . -name '*.in'`
+    $ git archive origin/autoconf/master | tar xvm
+      # Next line is a work-around for timestamp problems
+    $ touch aclocal.m4 && touch configure && touch `find . -name '*.in'`
 
-You can then go ahead and run the configure script, make, and install:
+### Getting the sources from the zip ###
 
-	$ ./configure
-	$ make
-	$ sudo make install
+You can download a ZIP file of the latest version
+[here](https://github.com/darconeous/concordd/archive/full/master.zip),
+which includes the configure script.
 
-You should then copy concordd.conf over from `/usr/local/etc` to `/etc`
-and edit it to your liking:
+## Building, installing, and running ##
 
-	$ sudo cp /usr/local/etc/concordd.conf /etc/concordd.conf
-	$ sudo nano /etc/concordd.conf
+After you have obtained the sources, you can run the configure script,
+make, and install:
+
+    $ ./configure
+    $ make
+    $ sudo make install
+
+You should then copy concordd.conf over from `/usr/local/etc` to
+`/etc` and edit it to your liking:
+
+    $ sudo cp /usr/local/etc/concordd.conf /etc/concordd.conf
+    $ sudo nano /etc/concordd.conf
 
 You can then start `concordd`:
 
-    $ /usr/local/bin/concordd -c /etc/concordd.conf -s /dev/ttyUSB0
+    $ sudo /usr/local/bin/concordd -c /etc/concordd.conf -s /dev/ttyUSB0
+
+Note the `sudo`. You may also need to restart DBus:
+
+	$ sudo systemctl restart dbus
 
 If you now open up another terminal, you should be able to use
 `concordctl` to interact with the alarm system:
 
-	$ concordctl
-	concordctl:1> help
-	Commands:
-	   partition                  Get info about partition
-	   system                     Get info about the system
-	   arm                        Read or change the partition arm level
-	   refresh                    Refresh alarm system state scoreboards
-	   panic                      Trigger a panic alarm of the specified type
-	   keypad                     Emulate a touchpad on this terminal
-	   keypad-input               Simulate button presses on the keypad
-	   zone                       Prints out info for one or more zones
-	   light                      Prints out info for one or more lights
-	   output                     Prints out info for one or more outputs
-	   log                        Prints out changes to the system as they occur
-	   quit                       Terminate command line mode.
-	   help                       Display this help.
-	   clear                      Clear shell.
-	concordctl:1> system
-	[
-		"panelType" => 20
-		"hwRevision" => 1793
-		"swRevision" => 16530
-		"serialNumber" => 21320841
-		"acPowerFailure" => false
-		"acPowerFailureChangedTimestamp" => 0
-	]
-	concordctl:1> zone
-	               Zone Name | Id |Par|Typ| Grp|Trp|Byp|Tro|Alr|Flt|Last Changed
-	-------------------------+----+---+---+----+---+---+---+---+---|------------
-	              FRONT DOOR |  1 | 1 | 0 | 10 |   |   |   |   |   | 37.5m ago
-	      LIVING ROOM MOTION |  2 | 1 | 0 | 17 |   |   |   |   |   | 1.3m ago
-	          KITCHEN MOTION |  3 | 1 | 0 | 17 | T |   |   |   |   | 1.0s ago
-	          KITCHEN WINDOW |  4 | 1 | 1 | 13 |   |   |   |   |   | 11.8h ago
-	          HALLWAY MOTION |  5 | 1 | 0 | 17 |   |   |   |   |   | 24.4m ago
-	              PATIO DOOR |  6 | 1 | 0 | 13 |   |   |   |   |   | 2.7d ago
-	   MASTER BEDROOM MOTION |  7 | 1 | 0 | 17 |   |   |   |   |   | 1.1m ago
-	             GARAGE DOOR |  8 | 1 | 1 | 11 |   |   |   |   |   | 1.3d ago
-	8 zones total.
-	concordctl:1>
+    $ concordctl
+    concordctl:1> help
+    Commands:
+       partition                  Get info about partition
+       system                     Get info about the system
+       arm                        Read or change the partition arm level
+       refresh                    Refresh alarm system state scoreboards
+       panic                      Trigger a panic alarm of the specified type
+       keypad                     Emulate a touchpad on this terminal
+       keypad-input               Simulate button presses on the keypad
+       zone                       Prints out info for one or more zones
+       light                      Prints out info for one or more lights
+       output                     Prints out info for one or more outputs
+       log                        Prints out changes to the system as they occur
+       quit                       Terminate command line mode.
+       help                       Display this help.
+       clear                      Clear shell.
+    concordctl:1> system
+    [
+        "panelType" => 20
+        "hwRevision" => 1793
+        "swRevision" => 16530
+        "serialNumber" => 21320841
+        "acPowerFailure" => false
+        "acPowerFailureChangedTimestamp" => 0
+    ]
+    concordctl:1> zone
+                   Zone Name | Id |Par|Typ| Grp|Trp|Byp|Tro|Alr|Flt|Last Changed
+    -------------------------+----+---+---+----+---+---+---+---+---|------------
+                  FRONT DOOR |  1 | 1 | 0 | 10 |   |   |   |   |   | 37.5m ago
+          LIVING ROOM MOTION |  2 | 1 | 0 | 17 |   |   |   |   |   | 1.3m ago
+              KITCHEN MOTION |  3 | 1 | 0 | 17 | T |   |   |   |   | 1.0s ago
+              KITCHEN WINDOW |  4 | 1 | 1 | 13 |   |   |   |   |   | 11.8h ago
+              HALLWAY MOTION |  5 | 1 | 0 | 17 |   |   |   |   |   | 24.4m ago
+                  PATIO DOOR |  6 | 1 | 0 | 13 |   |   |   |   |   | 2.7d ago
+       MASTER BEDROOM MOTION |  7 | 1 | 0 | 17 |   |   |   |   |   | 1.1m ago
+                 GARAGE DOOR |  8 | 1 | 1 | 11 |   |   |   |   |   | 1.3d ago
+    8 zones total.
+    concordctl:1>
 
 Note that the interactive console shown above will only be available
 if libreadline was available. Without it you will need to enter the
 commands on the same command line as `concordctl`:
 
-	$ concordctl system
-	[
-		"panelType" => 20
-		"hwRevision" => 1234
-		"swRevision" => 12345
-		"serialNumber" => 12312312
-		"acPowerFailure" => false
-		"acPowerFailureChangedTimestamp" => 0
-	]
+    $ concordctl system
+    [
+        "panelType" => 20
+        "hwRevision" => 1234
+        "swRevision" => 12345
+        "serialNumber" => 12312312
+        "acPowerFailure" => false
+        "acPowerFailureChangedTimestamp" => 0
+    ]
 
 Setting up `concordd` to run as a daemon at startup is left as an
 excercise for the reader.
