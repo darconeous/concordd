@@ -69,7 +69,7 @@ and edit it to your liking:
 	$ sudo cp /usr/local/etc/concordd.conf /etc/concordd.conf
 	$ sudo nano /etc/concordd.conf
 
-You can then start concord:
+You can then start `concordd`:
 
     $ /usr/local/bin/concordd -c /etc/concordd.conf -s /dev/ttyUSB0
 
@@ -103,16 +103,16 @@ If you now open up another terminal, you should be able to use
 		"acPowerFailureChangedTimestamp" => 0
 	]
 	concordctl:1> zone
-						  Zone Name | Id |Par|Typ| Grp|Trp|Byp|Tro|Alr|Flt|Last Changed
-	--------------------------------+----+---+---+----+---+---+---+---+---|------------
-						 FRONT DOOR |  1 | 1 | 0 | 10 |   |   |   |   |   | 37.5m ago
-				 LIVING ROOM MOTION |  2 | 1 | 0 | 17 |   |   |   |   |   | 1.3m ago
-					 KITCHEN MOTION |  3 | 1 | 0 | 17 | T |   |   |   |   | 1.0s ago
-					 KITCHEN WINDOW |  4 | 1 | 1 | 13 |   |   |   |   |   | 11.8h ago
-					 HALLWAY MOTION |  5 | 1 | 0 | 17 |   |   |   |   |   | 24.4m ago
-						 PATIO DOOR |  6 | 1 | 0 | 13 |   |   |   |   |   | 2.7d ago
-			  MASTER BEDROOM MOTION |  7 | 1 | 0 | 17 |   |   |   |   |   | 1.1m ago
-						GARAGE DOOR |  8 | 1 | 1 | 11 |   |   |   |   |   | 1.3d ago
+	               Zone Name | Id |Par|Typ| Grp|Trp|Byp|Tro|Alr|Flt|Last Changed
+	-------------------------+----+---+---+----+---+---+---+---+---|------------
+	              FRONT DOOR |  1 | 1 | 0 | 10 |   |   |   |   |   | 37.5m ago
+	      LIVING ROOM MOTION |  2 | 1 | 0 | 17 |   |   |   |   |   | 1.3m ago
+	          KITCHEN MOTION |  3 | 1 | 0 | 17 | T |   |   |   |   | 1.0s ago
+	          KITCHEN WINDOW |  4 | 1 | 1 | 13 |   |   |   |   |   | 11.8h ago
+	          HALLWAY MOTION |  5 | 1 | 0 | 17 |   |   |   |   |   | 24.4m ago
+	              PATIO DOOR |  6 | 1 | 0 | 13 |   |   |   |   |   | 2.7d ago
+	   MASTER BEDROOM MOTION |  7 | 1 | 0 | 17 |   |   |   |   |   | 1.1m ago
+	             GARAGE DOOR |  8 | 1 | 1 | 11 |   |   |   |   |   | 1.3d ago
 	8 zones total.
 	concordctl:1>
 
