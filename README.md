@@ -96,7 +96,7 @@ Note the `sudo`. You may also need to restart DBus:
 If you now open up another terminal, you should be able to use
 `concordctl` to interact with the alarm system:
 
-    $ concordctl
+    $ sudo concordctl
     concordctl:1> help
     Commands:
        partition                  Get info about partition
@@ -140,7 +140,7 @@ Note that the interactive console shown above will only be available
 if libreadline was available. Without it you will need to enter the
 commands on the same command line as `concordctl`:
 
-    $ concordctl system
+    $ sudo concordctl system
     [
         "panelType" => 20
         "hwRevision" => 1234
@@ -152,6 +152,29 @@ commands on the same command line as `concordctl`:
 
 Setting up `concordd` to run as a daemon at startup is left as an
 excercise for the reader.
+
+## Using `concordctl` without `sudo`
+
+If you want make it so that you don't need to be `root` or use `sudo`
+to be able to use `concordctl`, you can do the following:
+
+1.  Create a group named `concordd-admin`.
+2.  Add any users to that group that you want to be able to use
+    `concordctl`.
+3.  For any user that you just added to that group, you **MUST** log
+    out and log back in before `concordctl` will work without sudo.
+
+If you are using Raspbian, you can do the above with the following
+shell commands:
+
+    $ sudo groupadd concordd-admin
+    $ sudo usermod -a -G concordd-admin ${USER}
+    $ logout
+
+Once you log back in, you should be able to use `concordctl` without
+`sudo`. Note that if you are logged into the GUI directly on the RPI,
+you will need to manually log out of that before you will be able to
+skip using `sudo`. If in doubt, a reboot will surely do the trick.
 
 ## License ##
 
