@@ -691,8 +691,8 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 	case GE_RS232_PTA_SUBCMD_ENTRY_EXIT_DELAY:
 		syslog(LOG_NOTICE,
 			"[%s_%s_DELAY] PN:%d AREA:%d EXT:%d SECONDS:%d",
-			frame_bytes[4]&(1<<7)?"END":"BEGIN",
-			frame_bytes[4]&(1<<6)?"EXIT":"ENTRY",
+			frame_bytes[4]&(1<<7) ? "END" : "BEGIN",
+			frame_bytes[4]&(1<<6) ? "EXIT" : "ENTRY",
 			frame_bytes[2],
 			frame_bytes[3],
 			frame_bytes[4]&0x3,
@@ -700,9 +700,9 @@ concordd_handle_subcmd(concordd_instance_t self, const uint8_t* frame_bytes, int
 		);
 
 		concordd_partition_t partition = concordd_get_partition(self, frame_bytes[2]);
-		if(partition) {
-			bool new_value = !!(frame_bytes[4]&(1<<7));
-			if(frame_bytes[4]&(1<<6)) {
+		if (partition) {
+			bool new_value = !(frame_bytes[4]&(1<<7));
+			if (frame_bytes[4]&(1<<6)) {
 				partition->exit_delay_active = new_value;
 			} else {
 				partition->entry_delay_active = new_value;
