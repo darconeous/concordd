@@ -699,7 +699,7 @@ concordd_light_info_changed_func(void* context,  concordd_instance_t instance, c
     } else if (pid == 0) {
         char value[64];
 
-        setenv("CONCORDD_TYPE", "OUTPUT", 1);
+        setenv("CONCORDD_TYPE", "LIGHT", 1);
 
         snprintf(value, sizeof(value), "%d", concordd_get_partition_index(instance, partition));
         setenv("CONCORDD_PARTITION_ID", value, 1);
