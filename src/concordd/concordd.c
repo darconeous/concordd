@@ -1292,13 +1292,21 @@ concordd_set_arm_level(concordd_instance_t self, int partitioni, int arm_level, 
         return GE_RS232_STATUS_INVALID_ARGUMENT;
     }
 
+	bool sirenIsOn = ((partition->siren_repeat == 0) && (partition->siren_started_at != 0));
+
+	if (sirenIsOn && arm_level != 1) {
+		// If the siren is on we don't let the arm level change to
+		// anything other than 1.
+        return GE_RS232_STATUS_FORBIDDEN;
+	}
+
 	/* If the arm level is different,
 	 * OR the siren is wailing,
 	 * OR an entry delay is active...
 	 */
     if ( (partition->arm_level != arm_level)
-	  || ((partition->siren_repeat == 0) && (partition->siren_started_at != 0))
-	  || partition->entry_delay_active
+	  || sirenIsOn
+	  || (partition->entry_delay_active && arm_level == 1)
 	) {
 		if (partition->programming_mode) {
 			return GE_RS232_STATUS_ERROR;
